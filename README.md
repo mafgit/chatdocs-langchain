@@ -1,14 +1,22 @@
-<!-- Project 1: "Chat with my PDF" (The Classic)
-Goal: Upload a 50-page PDF (like a manual or a lease) and ask questions about it.
+# 🌀 Chat with Docs
 
-Key Skill: Learning how to chunk data (breaking a big PDF into small, searchable paragraphs).
+Chat with LLM by giving it prompts and documents
 
-Project 2: Personal Knowledge Base
-Goal: Connect a folder of your own Markdown notes or text files to an AI.
+### In this project, I worked with:
 
-Key Skill: Learning persistence (how to save your vector database so you don't have to re-index every time).
+- LangChain
+- Ollama
+- Text splitters (Recursive Character)
+- Document Loaders (PDF, DOCX, TXT, MD, CSV)
+- Vectorstores (Chroma)
+- Streamlit
+- Python
 
-Project 3: YouTube Summarizer & QA
-Goal: Give the AI a YouTube URL; it fetches the transcript, embeds it, and lets you ask questions about the video.
+### Main Procedure:
 
-Key Skill: Handling third-party data and API integration. -->
+- File contents are broken into small chunks (like paragraphs) (with overlaps to maintain some context).
+- They are turned into an embedding vector (one chunk has one embedding vector) using embedding model. This embedding represents the meaning of the chunk.
+- The chunk and its vector are stored in a vector store.
+- A top-K similarity search is conducted in the vectorstore with respect to the user query/prompt.
+- Context (i.e. the top K similar results concatenated) is provided, to the LLM, within the prompt.
+- A history of the conversation is maintained which is fed to the LLM each time a user prompts.
