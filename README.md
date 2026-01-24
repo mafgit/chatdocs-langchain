@@ -1,6 +1,23 @@
 # 🌀 Chat with Docs
 
-Chat with LLM by giving it prompts and documents
+Chat with LLM, attach documents, create multiple chats!
+
+### TODOS:
+
+- last prompt time based ordering of sidebar chats
+- make readme better with new images
+- make system message / CONTEXT, PROMPT, etc better
+- add option of using whichever model
+- add option of choosing style
+- add sqlite3
+- fix .md file not being read correctly
+- add youtube transcripts
+- add website content reading
+- make relevant content getting better
+- learn about retrievalQA
+- add user auth
+
+![](./readme_image_1.png)
 
 ### In this project, I worked with:
 

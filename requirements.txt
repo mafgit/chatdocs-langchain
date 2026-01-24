@@ -19,9 +19,11 @@ chromadb==1.4.1
 click==8.3.1
 colorama==0.4.6
 coloredlogs==15.0.1
+coolname==2.2.0
 cryptography==46.0.3
 dataclasses-json==0.6.7
 distro==1.9.0
+docx2txt==0.9
 durationpy==0.10
 emoji==2.15.0
 faiss-cpu==1.13.2
@@ -150,6 +152,7 @@ tzdata==2025.3
 unstructured==0.18.27
 unstructured-client==0.42.8
 urllib3==2.6.3
+uuid==1.30
 uuid_utils==0.14.0
 uvicorn==0.40.0
 watchdog==6.0.0

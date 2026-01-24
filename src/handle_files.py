@@ -10,7 +10,7 @@ mime_types = {
 }
 
 
-def handle_files(files):
+def handle_files(files, user_id: str, chat_id: str):
     """Saves files, reads them, and gets docs from them and returns them as in an array and also returns a file locations array"""
 
     all_docs = []
@@ -42,6 +42,8 @@ def handle_files(files):
             for doc in docs:
                 # doc.metadata["download_location"] = doc.metadata["source"]
                 doc.metadata["source"] = file.name
+                doc.metadata["user_id"] = user_id
+                doc.metadata["chat_id"] = chat_id
 
             all_docs.extend(docs)
 
