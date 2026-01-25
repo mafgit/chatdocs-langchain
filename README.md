@@ -1,6 +1,6 @@
-# 🌀 Chat with Docs
+# 🌀 ChatDocs
 
-Chat with LLM, attach documents, create multiple chats!
+Chat with LLMs, attach documents, create multiple chats!
 
 ### TODOS:
 

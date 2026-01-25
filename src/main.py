@@ -1,7 +1,6 @@
 import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from handle_files import handle_files
-from random import randint
 from typing import Tuple, Literal, Optional, Sequence
 from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama
@@ -24,7 +23,7 @@ class Message:
 
 
 def main(llm: ChatOllama, vectorstore: Chroma):
-    st.set_page_config("Chat with Docs", page_icon=":material/borg:")
+    st.set_page_config("ChatDocs", page_icon=":material/borg:")
 
     chats = st.session_state["chats"]
     current_chat_id = st.session_state["current_chat_id"]
@@ -33,13 +32,36 @@ def main(llm: ChatOllama, vectorstore: Chroma):
 
     st.header(":material/borg: " + current_chat["name"])
 
+    # preferences
+    with st.expander("Preferences", icon=":material/settings:"):
+        left, right = st.columns(2)
+        with left:
+            st.selectbox("Model", ("gemma2:2b", "llama3.2"))
+        with right:
+            st.selectbox(
+                "Style",
+                (
+                    "Normal",
+                    "Professional, Polished, Precise",
+                    "Friendly, Warm, Chatty",
+                    "Efficient, Concise, Plain",
+                    "Candid, Direct, Encouraging",
+                    "Nerdy, Exploratory, Enthusiastic",
+                    "Quirky, Playful, Imaginative",
+                ),
+            )
+
+        left, right = st.columns(2)
+        with left:
+            st.slider("Temperature (Randomness/Creativity)", 0.0, 2.0, value=1.0, step=0.1, format="plain")
+        with right:
+            st.slider("Reasoning (Only supported in some models)", 0.0, 1.0, value=1.0, step=0.1, format="plain")
+
     greetings_div = st.empty()
 
     if len(current_chat_history) == 0:
-        greetings = ["Hey there!", "Greetings, user!", "Nice to meet you!", "Hello there!", "Good to see you!"]
-        greeting_msg = greetings[randint(0, len(greetings) - 1)]
         greetings_div.html(
-            f'<div style="display:flex;justify-content:center;align-items:center;min-height:min(calc(100vw/2),250px);margin-top:auto;opacity:0.8;font-size:1.2rem;">👋 {greeting_msg}</div>'
+            f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:0.8;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
         )
     else:
         for item in current_chat_history:
@@ -48,8 +70,18 @@ def main(llm: ChatOllama, vectorstore: Chroma):
                     if item.files_info:
                         for filename, file_size, file_location, mime_type in item.files_info:
                             with open(file_location, "rb") as f:
+                                if file_size > 1_048_576:
+                                    file_size = file_size / 1_048_576
+                                    unit = "MB"
+                                elif file_size > 1024:
+                                    file_size = file_size / 1024
+                                    unit = "KB"
+                                else:
+                                    # file_size = file_size
+                                    unit = "B"
+
                                 st.download_button(
-                                    label=filename + " (" + str(file_size) + "KB)",
+                                    label=f"{filename} ({file_size:.1f} {unit})",
                                     data=f,
                                     file_name=filename,
                                     mime=mime_type,
@@ -118,7 +150,7 @@ def main(llm: ChatOllama, vectorstore: Chroma):
                         vectorstore.add_documents(chunks)
 
             if vectorstore._collection.count() > 0:
-                with st.status("Finding relevant context from vectorstore"):
+                with st.status("Finding relevant context"):
                     results = vectorstore.similarity_search(
                         query=final_prompt_text,
                         k=5,

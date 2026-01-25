@@ -12,7 +12,7 @@ def generate_unique_name():
 
 def sidebar():
     with st.sidebar:
-        st.title(":material/borg: Chat with Docs", text_alignment="center")
+        st.title(":material/borg: ChatDocs", text_alignment="center")
 
         new_chat_btn = st.button("New Chat", icon=":material/add:", width="stretch", type="primary")
 

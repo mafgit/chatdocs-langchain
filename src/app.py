@@ -3,6 +3,7 @@ from sidebar import sidebar, generate_unique_name
 from main import main
 from uuid import uuid4
 import time
+from random import randint
 
 
 def session():
@@ -21,6 +22,11 @@ def session():
 
     if not "disabled" in st.session_state:
         st.session_state["disabled"] = False
+
+    if not "greeting_msg" in st.session_state:
+        greetings = ["Hey there!", "Greetings, user!", "Nice to meet you!", "Hello there!", "Good to see you!"]
+        greeting_msg = "👋 " + greetings[randint(0, len(greetings) - 1)]
+        st.session_state["greeting_msg"] = greeting_msg
 
 
 from langchain_ollama import ChatOllama
