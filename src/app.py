@@ -2,12 +2,15 @@ import streamlit as st
 from sidebar import sidebar, generate_unique_name
 from main import main
 from uuid import uuid4
+import time
 
 
 def session():
     if not "chats" in st.session_state:
         new_chat_id = uuid4().hex
-        st.session_state["chats"] = {new_chat_id: {"name": generate_unique_name(), "history": []}}
+        st.session_state["chats"] = {
+            new_chat_id: {"name": generate_unique_name(), "history": [], "last_interaction": time.time()}
+        }
         st.session_state["current_chat_id"] = new_chat_id
 
     # if not "max_chat_id" in st.session_state:

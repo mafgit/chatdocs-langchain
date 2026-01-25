@@ -4,7 +4,7 @@ Chat with LLM, attach documents, create multiple chats!
 
 ### TODOS:
 
-- last prompt time based ordering of sidebar chats
+- ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
 - make readme better with new images
 - make system message / CONTEXT, PROMPT, etc better
 - add option of using whichever model

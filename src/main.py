@@ -5,6 +5,7 @@ from random import randint
 from typing import Tuple, Literal, Optional, Sequence
 from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama
+import time
 
 
 class Message:
@@ -92,13 +93,13 @@ def main(llm: ChatOllama, vectorstore: Chroma):
 
         final_prompt_text = original_prompt_text[:]
 
-        stop = False
+        error = False
         if not files and not original_prompt_text:
-            stop = True
+            error = True
 
-        if not stop:
+        if not error:
             st.session_state["disabled"] = True
-
+            st.session_state["chats"][current_chat_id]["last_interaction"] = time.time()
             greetings_div.empty()
             if not original_prompt_text and files:
                 final_prompt_text = "I am attaching some documents"
