@@ -15,13 +15,13 @@ docs = splitter.create_documents(texts)
 
 embeddings = OllamaEmbeddings(model="llama3.2")
 
-vectorstore = Chroma.from_documents(documents=docs, embedding=embeddings, persist_directory="vectorstore")
+vector_store = Chroma.from_documents(documents=docs, embedding=embeddings, persist_directory="vector_store")
 
-# print(vectorstore._collection.count())
+# print(vector_store._collection.count())
 
 query = "What is LangChain?"
 
-results = vectorstore.similarity_search(query, k=2)
+results = vector_store.similarity_search(query, k=2)
 
 for result in results:
     print(result.page_content, result.metadata)

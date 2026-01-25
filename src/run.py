@@ -5,6 +5,7 @@ from uuid import uuid4
 import time
 from random import randint
 
+from model import load_llm, load_vector_store
 
 def session():
     if not "chats" in st.session_state:
@@ -29,30 +30,8 @@ def session():
         st.session_state["greeting_msg"] = greeting_msg
 
 
-from langchain_ollama import ChatOllama
-from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
-
-
-@st.cache_resource
-def load_llm(model):
-    return ChatOllama(model=model)
-
-
-@st.cache_resource
-def load_vectorstore(model):
-    embeddings = OllamaEmbeddings(model=model)
-    return Chroma(persist_directory="vectorstore", collection_name="chat_histories", embedding_function=embeddings)
-
 
 if __name__ == "__main__":
-    models_to_embeddings = {"gemma2:2b": "embeddinggemma:300m", "llama3.2": "llama3.2"}
-    model = "gemma2:2b"
-
-    llm = load_llm(model)
-    vectorstore = load_vectorstore(models_to_embeddings[model])
-
-    # vectorstore.reset_collection()
     session()
     sidebar()
-    main(llm, vectorstore)
+    main()

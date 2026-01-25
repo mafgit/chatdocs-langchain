@@ -2,9 +2,23 @@ import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from handle_files import handle_files
 from typing import Tuple, Literal, Optional, Sequence
-from langchain_chroma import Chroma
-from langchain_ollama import ChatOllama
+from model import load_llm, load_vector_store, embedding_models, chat_models
 import time
+
+
+def convert_file_size(filename, file_size):
+    if file_size > 1_048_576:
+        file_size = file_size / 1_048_576
+        unit = "MB"
+    elif file_size > 1024:
+        file_size = file_size / 1024
+        unit = "KB"
+    else:
+        # file_size = file_size
+        unit = "B"
+
+    label = f"{filename} `{file_size:.1f} {unit}`"
+    return file_size, unit, label
 
 
 class Message:
@@ -22,7 +36,7 @@ class Message:
         return {"role": self.role, "content": self.content}
 
 
-def main(llm: ChatOllama, vectorstore: Chroma):
+def main():
     st.set_page_config("ChatDocs", page_icon=":material/borg:")
 
     chats = st.session_state["chats"]
@@ -34,9 +48,11 @@ def main(llm: ChatOllama, vectorstore: Chroma):
 
     # preferences
     with st.expander("Preferences", icon=":material/settings:"):
-        left, right = st.columns(2)
+        left, middle, right = st.columns(3)
         with left:
-            st.selectbox("Model", ("gemma2:2b", "llama3.2"))
+            selected_chat_model = st.selectbox("Chat Model", tuple(chat_models), key="chat_model")
+        with middle:
+            selected_embedding_model = st.selectbox("Embedding Model", tuple(embedding_models), key="embedding_model")
         with right:
             st.selectbox(
                 "Style",
@@ -49,13 +65,16 @@ def main(llm: ChatOllama, vectorstore: Chroma):
                     "Nerdy, Exploratory, Enthusiastic",
                     "Quirky, Playful, Imaginative",
                 ),
+                key="style",
             )
 
         left, right = st.columns(2)
         with left:
-            st.slider("Temperature (Randomness/Creativity)", 0.0, 2.0, value=1.0, step=0.1, format="plain")
-        with right:
-            st.slider("Reasoning (Only supported in some models)", 0.0, 1.0, value=1.0, step=0.1, format="plain")
+            selected_temperature = st.slider(
+                "Temperature (Randomness/Creativity)", 0.0, 2.0, value=0.8, step=0.1, format="plain", key="temperature"
+            )
+        # with right:
+        #     st.selectbox()
 
     greetings_div = st.empty()
 
@@ -64,24 +83,16 @@ def main(llm: ChatOllama, vectorstore: Chroma):
             f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:0.8;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
         )
     else:
+        # looping over chat history
         for item in current_chat_history:
             if item.role == "human":
                 with st.chat_message("human"):
                     if item.files_info:
                         for filename, file_size, file_location, mime_type in item.files_info:
+                            _, _, label = convert_file_size(filename, file_size)
                             with open(file_location, "rb") as f:
-                                if file_size > 1_048_576:
-                                    file_size = file_size / 1_048_576
-                                    unit = "MB"
-                                elif file_size > 1024:
-                                    file_size = file_size / 1024
-                                    unit = "KB"
-                                else:
-                                    # file_size = file_size
-                                    unit = "B"
-
                                 st.download_button(
-                                    label=f"{filename} ({file_size:.1f} {unit})",
+                                    label=label,
                                     data=f,
                                     file_name=filename,
                                     mime=mime_type,
@@ -130,57 +141,62 @@ def main(llm: ChatOllama, vectorstore: Chroma):
             error = True
 
         if not error:
+            vector_store = load_vector_store(selected_embedding_model)
             st.session_state["disabled"] = True
             st.session_state["chats"][current_chat_id]["last_interaction"] = time.time()
             greetings_div.empty()
             if not original_prompt_text and files:
                 final_prompt_text = "I am attaching some documents"
 
-            files_info = None
-            if files:
-                with st.status("Handling attached documents"):
-                    with st.status("Saving files & getting their contents & info"):
-                        docs, files_info = handle_files(files, user_id=user_id, chat_id=current_chat_id)
-
-                    with st.status("Splitting into chunks"):
-                        splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
-                        chunks = splitter.split_documents(docs)
-                        # chunks[0].page_content, chunks[0].metadata
-                    with st.status("Adding to vectorstore"):
-                        vectorstore.add_documents(chunks)
-
-            if vectorstore._collection.count() > 0:
-                with st.status("Finding relevant context"):
-                    results = vectorstore.similarity_search(
-                        query=final_prompt_text,
-                        k=5,
-                        filter={"$and": [{"user_id": user_id}, {"chat_id": current_chat_id}]},  # pyright: ignore
-                    )
-
-                    # context = "\n\n".join([doc.page_content + " [" + doc.metadata["source"] + "]" for doc in results])
-
-                    context = ""
-                    for doc in results:
-                        info = doc.page_content + " [" + doc.metadata["source"] + "]"
-                        st.info(info)
-                        context += "\n\n" + doc.page_content + " [" + doc.metadata["source"] + "]"
-
-                    if context:
-                        context = context[:-2]  # to remove last two \n\n
-
-                if context.strip():
-                    final_prompt_text = (
-                        "Some relevant context from attached files/documents:\n\n" + context + "\n\nPrompt: " + final_prompt_text
-                    )
-
-            # print(final_prompt_text)
-
             with st.chat_message("human"):
+                files_info = None
+                if files:
+                    with st.status("Handling attached documents"):
+                        with st.status("Saving files & getting their contents & info"):
+                            docs, files_info = handle_files(files, user_id=user_id, chat_id=current_chat_id)
+
+                        with st.status("Splitting into chunks"):
+                            splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
+                            chunks = splitter.split_documents(docs)
+                            # chunks[0].page_content, chunks[0].metadata
+                        with st.status("Adding to vector store"):
+                            vector_store.add_documents(chunks)
+
+                if vector_store._collection.count() > 0:
+                    with st.status("Finding relevant context"):
+                        results = vector_store.similarity_search(
+                            query=final_prompt_text,
+                            k=5,
+                            filter={"$and": [{"user_id": user_id}, {"chat_id": current_chat_id}]},  # pyright: ignore
+                        )
+
+                        # context = "\n\n".join([doc.page_content + " [" + doc.metadata["source"] + "]" for doc in results])
+
+                        context = ""
+                        for doc in results:
+                            info = doc.page_content + " [" + doc.metadata["source"] + "]"
+                            st.info(info)
+                            context += "\n\n" + doc.page_content + " [" + doc.metadata["source"] + "]"
+
+                        if context:
+                            context = context[:-2]  # to remove last two \n\n
+
+                    if context.strip():
+                        final_prompt_text = (
+                            "Some relevant context from attached files/documents:\n\n"
+                            + context
+                            + "\n\nPrompt: "
+                            + final_prompt_text
+                        )
+
+                # print(final_prompt_text)
+
                 if files_info:
                     for filename, file_size, file_location, mime_type in files_info:
+                        _, _, label = convert_file_size(filename, file_size)
                         with open(file_location, "rb") as f:
                             st.download_button(
-                                label=filename + " (" + str(file_size) + "KB)",
+                                label=label,
                                 data=f,
                                 file_name=filename,
                                 mime=mime_type,
@@ -196,6 +212,7 @@ def main(llm: ChatOllama, vectorstore: Chroma):
                 + [{"role": "human", "content": final_prompt_text}]
             )
 
+            llm = load_llm(selected_chat_model, temperature=selected_temperature)
             with st.chat_message("ai"):
                 chunks = llm.stream(history)
                 # appending original message to history
