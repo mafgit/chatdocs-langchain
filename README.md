@@ -4,13 +4,18 @@ Chat with LLMs, attach documents, create multiple chats!
 
 ### TODOS:
 
-- check session storage keys of preferences and change chat if embedding model changed
+- ~~check session storage keys of preferences and change chat if embedding model changed~~
+- delete chat
+- stop response in middle
+- catch errors regarding not logged in or network error or other ollama errors
+- add thinking models and their tags functionality
+- changing preferences in the middle of response stops it (reruns the flow) 
 - ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
 - thinking etc status should be inside ai chat message, not human
 - make readme better with new images
 - make system message / CONTEXT, PROMPT, etc better
-- add option of using whichever model
-- add option of choosing style
+- ~~add option of using whichever model~~
+- ~~add option of choosing style~~
 - add sqlite3
 - fix .md file not being read correctly
 - add youtube transcripts

@@ -2,8 +2,24 @@ import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from handle_files import handle_files
 from typing import Tuple, Literal, Optional, Sequence
-from model import load_llm, load_vector_store, embedding_models, chat_models
+from model import load_chat_model, load_vector_store, embedding_models, chat_models
 import time
+import requests
+
+
+@st.cache_resource
+def get_system_message(style):
+    if style != "Normal":
+        style_prompt = f" Adopt a {style.lower()} tone."
+    else:
+        style_prompt = ""
+
+    system_message = Message(
+        "system",
+        content=f"You are a helpful assistant who focuses on providing relevant and useful information to user. If context is attached from documents, use it as well as your own knowledge to answer user's queries. If you don't know something, then say so.{style_prompt}",
+    )
+
+    return system_message
 
 
 def convert_file_size(filename, file_size):
@@ -48,13 +64,29 @@ def main():
 
     # preferences
     with st.expander("Preferences", icon=":material/settings:"):
-        left, middle, right = st.columns(3)
+        st.info(
+            "Make sure to `ollama pull <model_name>` unless the model_name ends with `-cloud`, in which case you must be logged in Ollama. \n\nYou can type custom Ollama model below as well.",
+            icon=":material/info:",
+        )
+        st.warning(
+            "Changing embedding model would require you to either re-upload documents or start a new chat for it to work properly",
+            icon=":material/warning:",
+        )
+        left, right = st.columns(2)
         with left:
-            selected_chat_model = st.selectbox("Chat Model", tuple(chat_models), key="chat_model")
-        with middle:
-            selected_embedding_model = st.selectbox("Embedding Model", tuple(embedding_models), key="embedding_model")
+            selected_chat_model = st.selectbox("Chat Model", chat_models, key="chat_model", accept_new_options=True)
         with right:
-            st.selectbox(
+            selected_embedding_model = st.selectbox(
+                "Embedding Model", embedding_models, key="embedding_model", accept_new_options=True
+            )
+
+        left, right = st.columns(2)
+        with left:
+            selected_temperature = st.slider(
+                "Temperature (Creativity) (Default = 0.8)", 0.0, 2.0, value=0.8, step=0.1, format="plain", key="temperature"
+            )
+        with right:
+            style = st.selectbox(
                 "Style",
                 (
                     "Normal",
@@ -67,14 +99,6 @@ def main():
                 ),
                 key="style",
             )
-
-        left, right = st.columns(2)
-        with left:
-            selected_temperature = st.slider(
-                "Temperature (Randomness/Creativity)", 0.0, 2.0, value=0.8, step=0.1, format="plain", key="temperature"
-            )
-        # with right:
-        #     st.selectbox()
 
     greetings_div = st.empty()
 
@@ -110,13 +134,10 @@ def main():
             response += chunk.text
             yield chunk
 
-        st.session_state["disabled"] = False
         current_chat_history.append(Message(content=response, role="ai", files_info=[]))
+        st.session_state["disabled"] = False
 
-    sys_msg = Message(
-        "system",
-        content="You are a helpful assistant who focuses on providing relevant and useful information to user. If context is attached from documents, use it as well as your own knowledge to answer user's queries. If you don't know something, then say so.",
-    )
+    system_message = get_system_message(style)
 
     user_id = st.session_state["user_id"]
 
@@ -141,12 +162,20 @@ def main():
             error = True
 
         if not error:
-            vector_store = load_vector_store(selected_embedding_model)
-            st.session_state["disabled"] = True
+            try:
+                vector_store = load_vector_store(selected_embedding_model)
+            except:
+                st.error(
+                    "Invalid model selected, please verify the exact name of embedding model you have selected in preferences from Ollama."
+                )
+                st.stop()
+            finally:
+                st.session_state["disabled"] = False
+
             st.session_state["chats"][current_chat_id]["last_interaction"] = time.time()
             greetings_div.empty()
             if not original_prompt_text and files:
-                final_prompt_text = "I am attaching some documents"
+                final_prompt_text = "I have attached some documents"
 
             with st.chat_message("human"):
                 files_info = None
@@ -159,7 +188,7 @@ def main():
                             splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
                             chunks = splitter.split_documents(docs)
                             # chunks[0].page_content, chunks[0].metadata
-                        with st.status("Adding to vector store"):
+                        with st.status("Adding chunks to vector store"):
                             vector_store.add_documents(chunks)
 
                 if vector_store._collection.count() > 0:
@@ -206,13 +235,23 @@ def main():
                 st.markdown(original_prompt_text)
 
             # with st.spinner(text="", width="stretch"):
+            # print(selected_temperature, system_message.to_langchain()["content"])
             history = (
-                [sys_msg.to_langchain()]
+                [system_message.to_langchain()]
                 + [item.to_langchain() for item in current_chat_history[-5:]]
                 + [{"role": "human", "content": final_prompt_text}]
             )
 
-            llm = load_llm(selected_chat_model, temperature=selected_temperature)
+            try:
+                llm = load_chat_model(selected_chat_model, temperature=selected_temperature)
+            except:
+                st.error(
+                    "Invalid model selected, please verify the exact name of embedding model you have selected in preferences from Ollama."
+                )
+                st.stop()
+            finally:
+                st.session_state["disabled"] = False
+
             with st.chat_message("ai"):
                 chunks = llm.stream(history)
                 # appending original message to history

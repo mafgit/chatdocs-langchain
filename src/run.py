@@ -5,7 +5,7 @@ from uuid import uuid4
 import time
 from random import randint
 
-from model import load_llm, load_vector_store
+from model import load_chat_model, load_vector_store
 
 def session():
     if not "chats" in st.session_state:

@@ -6,14 +6,15 @@ import streamlit as st
 
 
 @st.cache_resource
-def load_llm(model, temperature=0.8, num_ctx=8192, reasoning=None):
-    return ChatOllama(model=model, temperature=temperature, num_ctx=num_ctx, reasoning=reasoning)
+def load_chat_model(model, temperature=0.8, num_ctx=8192, reasoning=None):
+    return ChatOllama(model=model, temperature=temperature, num_ctx=num_ctx, reasoning=reasoning, validate_model_on_init=True)
 
 
 @st.cache_resource
-def load_vector_store(model):
-    embeddings = OllamaEmbeddings(model=model)
-    return Chroma(persist_directory="vector_store", collection_name=model, embedding_function=embeddings)
+def load_vector_store(embedding_model: str):
+    embeddings = OllamaEmbeddings(model=embedding_model, validate_model_on_init=True)
+    collection_name = embedding_model.replace(":", "-")
+    return Chroma(persist_directory="vector_store", collection_name=collection_name, embedding_function=embeddings)
 
 
 # vector_store.reset_collection()
