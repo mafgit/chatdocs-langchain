@@ -2,8 +2,13 @@
 
 Chat with LLMs, attach documents, create multiple chats!
 
-### TODOS:
+## TODOS:
 
+- convert to ChatPromptTemplate
+- add youtube transcripts
+- add website content reading
+- fix .md file not being read correctly
+- add xlsx
 - ~~check session storage keys of preferences and change chat if embedding model changed~~
 - delete chat
 - stop response in middle
@@ -17,16 +22,13 @@ Chat with LLMs, attach documents, create multiple chats!
 - ~~add option of using whichever model~~
 - ~~add option of choosing style~~
 - add sqlite3
-- fix .md file not being read correctly
-- add youtube transcripts
-- add website content reading
 - make relevant content getting better
 - learn about retrievalQA
 - add user auth
 
 ![](./readme_image_1.png)
 
-### In this project, I worked with:
+## In this project, I worked with:
 
 - LangChain
 - Ollama
@@ -37,7 +39,7 @@ Chat with LLMs, attach documents, create multiple chats!
 - Streamlit
 - Python
 
-### Main Procedure:
+## Main Procedure:
 
 - File contents are broken into small chunks (like paragraphs) (with overlaps to maintain some context).
 - They are turned into an embedding vector (one chunk has one embedding vector) using embedding model. This embedding represents the meaning of the chunk.
@@ -45,3 +47,10 @@ Chat with LLMs, attach documents, create multiple chats!
 - A top-K similarity search is conducted in the vector store with respect to the user query/prompt.
 - Context (i.e. the top K similar results concatenated) is provided, to the LLM, within the prompt.
 - A history of the conversation is maintained which is fed to the LLM each time a user prompts.
+
+## How to run?
+1. Clone repo
+1. `python -m venv .venv` to create a virtual environment
+1. `pip install -r requirements.txt`
+1. Install Ollama from [https://ollama.com/](https://ollama.com/)
+1. `streamlit run src/run.py`

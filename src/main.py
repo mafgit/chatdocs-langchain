@@ -4,7 +4,7 @@ from handle_files import handle_files
 from typing import Tuple, Literal, Optional, Sequence
 from model import load_chat_model, load_vector_store, embedding_models, chat_models
 import time
-import requests
+from random import random
 
 
 @st.cache_resource
@@ -16,7 +16,7 @@ def get_system_message(style):
 
     system_message = Message(
         "system",
-        content=f"You are a helpful assistant who focuses on providing relevant and useful information to user. If context is attached from documents, use it as well as your own knowledge to answer user's queries. If you don't know something, then say so.{style_prompt}",
+        content=f"You are ChatDocs, a specialized assistant helping users in document-based learning. If files or documents or links are attached by user, you will find their contents in <CONTEXT>. If you don't know something, then say so.{style_prompt}",
     )
 
     return system_message
@@ -64,8 +64,8 @@ def main():
 
     # preferences
     with st.expander("Preferences", icon=":material/settings:"):
-        st.info(
-            "Make sure to `ollama pull <model_name>` unless the model_name ends with `-cloud`, in which case you must be logged in Ollama. \n\nYou can type custom Ollama model below as well.",
+        st.warning(
+            "Download the models locally using `ollama pull <model_name>` unless the model_name ends with `-cloud`, in which case you must be logged in Ollama. \n\nYou can type custom Ollama model below as well.",
             icon=":material/info:",
         )
         st.warning(
@@ -184,12 +184,15 @@ def main():
                         with st.status("Saving files & getting their contents & info"):
                             docs, files_info = handle_files(files, user_id=user_id, chat_id=current_chat_id)
 
-                        with st.status("Splitting into chunks"):
-                            splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
-                            chunks = splitter.split_documents(docs)
-                            # chunks[0].page_content, chunks[0].metadata
-                        with st.status("Adding chunks to vector store"):
-                            vector_store.add_documents(chunks)
+                        if docs:
+                            with st.status("Splitting into chunks"):
+                                splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
+                                chunks = splitter.split_documents(docs)
+                                # chunks[0].page_content, chunks[0].metadata
+
+                            if chunks:
+                                with st.status("Adding chunks to vector store"):
+                                    vector_store.add_documents(chunks)
 
                 if vector_store._collection.count() > 0:
                     with st.status("Finding relevant context"):
@@ -218,7 +221,7 @@ def main():
                             + final_prompt_text
                         )
 
-                # print(final_prompt_text)
+
 
                 if files_info:
                     for filename, file_size, file_location, mime_type in files_info:
@@ -230,6 +233,7 @@ def main():
                                 file_name=filename,
                                 mime=mime_type,
                                 icon=":material/file_present:",
+                                key=filename + str(random() * 99999),
                             )
                         # st.info(filename + " (" + str(file_size) + "KB)", icon=":material/file_present:")
                 st.markdown(original_prompt_text)

@@ -1,5 +1,7 @@
 from langchain_community.document_loaders import TextLoader, UnstructuredMarkdownLoader, Docx2txtLoader, PyPDFLoader, CSVLoader
 import tempfile
+from pathlib import Path
+from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 mime_types = {
     "pdf": "application/pdf",
@@ -8,6 +10,12 @@ mime_types = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "csv": "text/csv",
 }
+
+
+def alter_metadata(doc, file, user_id, chat_id):
+    doc.metadata["source"] = file.name  # to replace the actual temp file path with the name as was provided
+    doc.metadata["user_id"] = user_id
+    doc.metadata["chat_id"] = chat_id
 
 
 def handle_files(files, user_id: str, chat_id: str):
@@ -19,7 +27,12 @@ def handle_files(files, user_id: str, chat_id: str):
     for file in files:
         ext = file.name.split(".")[-1].lower()
 
-        with tempfile.NamedTemporaryFile(delete=False, dir="files") as tf:
+        # creating folder to save files if doesnt exist
+        dir = "files"
+        Path(dir).mkdir(
+            parents=True, exist_ok=True
+        )  # parents=True to ensure all parent folders are also created and exist_ok means dont throw error if exists
+        with tempfile.NamedTemporaryFile(delete=False, dir=dir) as tf:
             tf.write(file.getbuffer())
             file_path = tf.name
             all_files_info.append((file.name, file.size, tf.name, mime_types[ext]))
@@ -29,7 +42,20 @@ def handle_files(files, user_id: str, chat_id: str):
         elif ext == "txt":
             loader = TextLoader(file_path)
         elif ext == "md":
-            loader = UnstructuredMarkdownLoader(file_path)
+            loader = None  # handling here especially
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            splitter = MarkdownHeaderTextSplitter(
+                headers_to_split_on=[("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
+            )
+
+            docs = splitter.split_text(content)
+            for doc in docs:
+                alter_metadata(doc, file, user_id, chat_id)
+                print(doc, '\n\n')
+                all_docs.append(doc)
+
         elif ext == "docx":
             loader = Docx2txtLoader(file_path)
         elif ext == "csv":
@@ -38,13 +64,12 @@ def handle_files(files, user_id: str, chat_id: str):
             loader = None
 
         if loader:
-            docs = loader.load()
-            for doc in docs:
+            docs_generator = loader.lazy_load()
+            for doc in docs_generator:
+                # print("ANALYYYYYYYZE", doc, '\n\n\n')
                 # doc.metadata["download_location"] = doc.metadata["source"]
-                doc.metadata["source"] = file.name
-                doc.metadata["user_id"] = user_id
-                doc.metadata["chat_id"] = chat_id
-
-            all_docs.extend(docs)
+                alter_metadata(doc, file, user_id, chat_id)
+                all_docs.append(doc)
+                # print(doc.metadata)
 
     return all_docs, all_files_info
