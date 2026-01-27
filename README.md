@@ -4,27 +4,28 @@ Chat with LLMs, attach documents, create multiple chats!
 
 ## TODOS:
 
-- convert to ChatPromptTemplate
 - add youtube transcripts
 - add website content reading
-- fix .md file not being read correctly
 - add xlsx
-- ~~check session storage keys of preferences and change chat if embedding model changed~~
+- add better docx reader
 - delete chat
 - stop response in middle
 - catch errors regarding not logged in or network error or other ollama errors
 - add thinking models and their tags functionality
 - changing preferences in the middle of response stops it (reruns the flow) 
-- ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
-- thinking etc status should be inside ai chat message, not human
-- make readme better with new images
-- make system message / CONTEXT, PROMPT, etc better
-- ~~add option of using whichever model~~
-- ~~add option of choosing style~~
 - add sqlite3
 - make relevant content getting better
 - learn about retrievalQA
+- thinking etc status should be inside ai chat message, not human
+- make readme better with new images
+- make system message / CONTEXT, PROMPT, etc better
 - add user auth
+- ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
+- ~~add option of using whichever model~~
+- ~~add option of choosing style~~
+- ~~convert to ChatPromptTemplate~~
+- ~~fix .md file not being read correctly~~
+- ~~check session storage keys of preferences and change chat if embedding model changed~~
 
 ![](./readme_image_1.png)
 

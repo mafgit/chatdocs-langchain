@@ -1,15 +1,15 @@
 import streamlit as st
-from sidebar import sidebar, generate_unique_name
-from main import main
+from sidebar_area import sidebar, generate_unique_name
+from chat_area import main
 from uuid import uuid4
 import time
 from random import randint
 
-from model import load_chat_model, load_vector_store
 
-def session():
+def initialize_session_state():
     if not "chats" in st.session_state:
-        new_chat_id = uuid4().hex
+        # uuid4().hex
+        new_chat_id = 'dc29e7c88c62475e9d2ea5d50899faa9'
         st.session_state["chats"] = {
             new_chat_id: {"name": generate_unique_name(), "history": [], "last_interaction": time.time()}
         }
@@ -30,8 +30,7 @@ def session():
         st.session_state["greeting_msg"] = greeting_msg
 
 
-
 if __name__ == "__main__":
-    session()
+    initialize_session_state()
     sidebar()
     main()
