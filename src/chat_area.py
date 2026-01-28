@@ -66,7 +66,12 @@ def main():
     current_chat = chats[current_chat_id]
     current_chat_history = current_chat["history"]
 
-    st.header(":material/borg: " + current_chat["name"])
+    left, right = st.columns([0.9, 0.1])
+    with left:
+        st.subheader(":material/borg: " + current_chat["name"])
+    with right:
+        with st.container(horizontal_alignment="right"):
+            st.button(":material/delete:")
 
     # ---------------- PREFERENCES ----------------
 
@@ -273,6 +278,12 @@ def main():
 
                     try:
                         for chunk in chunks:
+                            if st.session_state.get("stop", False) == True:
+                                st.session_state["stop"] = False
+                                current_chat_history.append(Message(content=response, role="ai", files_info=[]))
+                                st.session_state["disabled"] = False
+                                return
+
                             if not isinstance(chunk, str):
 
                                 reasoning_content = chunk.additional_kwargs.get("reasoning_content")
@@ -307,7 +318,11 @@ def main():
 
                     current_chat_history.append(Message(content=response, role="ai", files_info=[]))
                     st.session_state["disabled"] = False
-
+                
+                stop_btn_container = st.empty()
+                if stop_btn_container.button(":material/stop_circle:"):
+                    st.session_state["stop"] = True
+                    stop_btn_container.empty()
                 st.write_stream(stream_generator(chunks))
 
         st.session_state["disabled"] = False

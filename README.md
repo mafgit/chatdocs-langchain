@@ -13,7 +13,7 @@ Chat with LLMs, attach documents, create multiple chats!
 - LangChain
 - Ollama
 - RAG
-- Text splitters (Recursive Character)
+- Text splitters (Recursive Character, Markdown Header)
 - Document Loaders (PDF, DOCX, TXT, MD, CSV)
 - Vector stores (Chroma)
 - Streamlit
