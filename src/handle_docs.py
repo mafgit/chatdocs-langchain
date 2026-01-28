@@ -98,7 +98,7 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
         return ""
 
     context_string = ""
-    with st.status("Finding relevant context"):
+    with st.status(":material/document_search: Finding relevant context"):
         results = vector_store.similarity_search(
             query=original_prompt_text,
             k=5,
@@ -106,9 +106,8 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
         )
 
         # context = "\n\n".join([doc.page_content + " [" + doc.metadata["source"] + "]" for doc in results])
-
         context_chunk_arr = []
-        for i, doc in enumerate(results):
+        for i, doc in enumerate(results, start=1):
             fields = [
                 "source",
                 "page",
@@ -124,6 +123,7 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
                 "Header 2",
                 "Header 3",
             ]
+
             metadata_strs = []
             for key in fields:
                 if key in doc.metadata:
@@ -131,10 +131,11 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
                         f"- **{key.upper()}**: {doc.metadata[key] if key != 'source' else '`' + doc.metadata[key] + '`'}"
                     )
 
-            chunk_context_string = f"#### [SOURCE_{i+1}]\n" f"{'\n'.join(metadata_strs)}\n" f"- **CONTENT**:\n{doc.page_content}"
+            chunk_context_string = f"#### [SOURCE_{i}]\n" f"{'\n'.join(metadata_strs)}\n" f"- **CONTENT**:\n{doc.page_content}"
             st.info(chunk_context_string)
             context_chunk_arr.append(chunk_context_string)
 
         context_string = "\n---\n\n".join(context_chunk_arr)
         # print("<CCCOOONTEXT>" + context_string + "</CCCOOONTEXT>")
+
         return context_string

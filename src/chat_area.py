@@ -72,7 +72,7 @@ def main():
 
     with st.expander("Preferences", icon=":material/settings:"):
         st.warning(
-            "Download the models locally using `ollama pull <model_name>` unless the model_name ends with `-cloud`, in which case you must be logged in Ollama. \n\nYou can type custom Ollama model below as well.",
+            "Ensure models are downloaded locally: `ollama pull <model_name>` (unless the model_name is ending with `cloud` which requires login in Ollama software instead.)\n\nYou can manually type a different model from Ollama library below as well.",
             icon=":material/info:",
         )
         st.warning(
@@ -89,8 +89,8 @@ def main():
 
         left, right = st.columns(2)
         with left:
-            selected_temperature = st.slider(
-                "Temperature (Creativity) (Default = 0.8)", 0.0, 2.0, value=0.8, step=0.1, format="plain", key="temperature"
+            selected_reasoning = st.selectbox(
+                "Reasoning (Only supported in some models)", ("Default", "Off", "Low", "Medium", "High"), key="reasoning"
             )
         with right:
             selected_style = st.selectbox(
@@ -106,6 +106,10 @@ def main():
                 ),
                 key="style",
             )
+
+        selected_temperature = st.slider(
+            "Temperature (Creativity) (Default = 0.6)", 0.0, 2.0, value=0.6, step=0.1, format="plain", key="temperature"
+        )
 
     # ---------------- GREETING OR CHAT HISTORY LOOP RENDERING ----------------
 
@@ -125,29 +129,6 @@ def main():
             elif item.role in {"ai", "assistant"}:
                 with st.chat_message("ai"):
                     st.markdown(item.content)
-
-    # ----------------- STREAM GENERATOR -----------------
-
-    def stream_generator(chunks):
-        response = ""
-
-        # total_citations = []
-        # citation_pattern = r"\[\[\SOURCE_(\d+)]\]"
-        # replacement_pattern = r"\[\1\]"
-
-        for chunk in chunks:
-            formatted_chunk = chunk
-            # citation_numbers = re.findall(citation_pattern, chunk)
-            # if citation_numbers:
-            #     formatted_chunk = re.sub(citation_pattern, replacement_pattern, chunk)
-            # else:
-            #     formatted_chunk = chunk
-
-            response += formatted_chunk
-            yield formatted_chunk
-
-        current_chat_history.append(Message(content=response, role="ai", files_info=[]))
-        st.session_state["disabled"] = False
 
     user_id = st.session_state["user_id"]
 
@@ -176,7 +157,7 @@ def main():
                 vector_store = load_vector_store(selected_embedding_model)
             except:
                 st.error(
-                    "Invalid model selected, please verify the exact name of embedding model you have selected in preferences from Ollama."
+                    "Invalid model selected, please verify the exact name of the embedding model you have selected in preferences from Ollama."
                 )
                 st.stop()
             finally:
@@ -191,21 +172,21 @@ def main():
 
                 files_info = None
                 if files:
-                    with st.status("Handling attached documents"):
-                        with st.status("Saving files & getting their contents & info"):
+                    with st.status(":material/document_scanner: Handling attached documents"):
+                        with st.status(":material/save: Saving files & getting their contents & info"):
                             files_info = save_files(files)
 
                         # ----------------- READING FILES AND EXTRACTING CHUNKS -----------------
 
                         chunks = read_files_and_extract_chunks(files_info, user_id, current_chat_id)
                         if chunks:
-                            with st.status("Splitting into chunks"):
+                            with st.status(":material/split_scene_left: Splitting into chunks"):
                                 splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
                                 chunks = splitter.split_documents(chunks)
                                 # chunks[0].page_content, chunks[0].metadata
 
                             if chunks:
-                                with st.status("Adding chunks to vector store"):
+                                with st.status(":material/splitscreen_add: Adding chunks to vector store"):
                                     vector_store.add_documents(chunks)
 
                 # ---------------- FILE DOWNLOAD BUTTONS ----------------
@@ -216,10 +197,18 @@ def main():
                 st.markdown(original_prompt_text)
 
                 try:
-                    chat_model = load_chat_model(selected_chat_model, temperature=selected_temperature)
+                    chat_model = load_chat_model(
+                        selected_chat_model,
+                        temperature=selected_temperature,
+                        reasoning=(
+                            None
+                            if selected_reasoning == "Default"
+                            else False if selected_reasoning == "Off" else selected_reasoning.lower()
+                        ),
+                    )
                 except:
                     st.error(
-                        "Invalid model selected, please verify the exact name of embedding model you have selected in preferences from Ollama."
+                        "Invalid model selected, please verify the exact name of the chat model you have selected in preferences from Ollama."
                     )
                     st.stop()
                 finally:
@@ -260,6 +249,64 @@ def main():
                 # appending original message to history
                 original_message = Message(content=original_prompt_text, role="human", files_info=files_info)
                 current_chat_history.append(original_message)
+
+                # ----------------- STREAM GENERATOR -----------------
+
+                def stream_generator(chunks):
+                    response = ""
+
+                    # citation_pattern = r"\[\[\SOURCE_(\d+)]\]"
+                    # replacement_pattern = r"\[\1\]"
+
+                    # thinking_status = None
+                    # thinking_placeholder = None
+                    # thinking_started = False
+
+                    if selected_reasoning in {"Default", "Off"}:
+                        status = ":material/memory: Processing"
+                    else:
+                        status = ":material/lightbulb: Thinking"
+
+                    full_thinking = ""
+                    thinking_status = st.status(status)
+                    thinking_placeholder = thinking_status.empty()
+
+                    try:
+                        for chunk in chunks:
+                            if not isinstance(chunk, str):
+
+                                reasoning_content = chunk.additional_kwargs.get("reasoning_content")
+                                if reasoning_content:
+                                    full_thinking += reasoning_content
+                                    thinking_placeholder.markdown(full_thinking)  # pyright: ignore
+
+                                if chunk.content:
+                                    thinking_status.update(  # pyright: ignore
+                                        label=status,
+                                        state="complete",
+                                    )
+                                    response += chunk.content
+                                    yield chunk.content
+                            else:
+                                response += chunk
+                                yield chunk
+
+                    except Exception as e:
+                        # raise e
+                        err = str(e)
+                        if "does not support thinking" in err:
+                            if thinking_status:
+                                thinking_status.update(
+                                    label=f":material/light_off: Thinking not supported by {selected_chat_model}", state="error"
+                                )
+                        else:
+                            st.error("An error occurred:" + err)
+
+                        st.session_state["disabled"] = False
+                        st.stop()
+
+                    current_chat_history.append(Message(content=response, role="ai", files_info=[]))
+                    st.session_state["disabled"] = False
 
                 st.write_stream(stream_generator(chunks))
 

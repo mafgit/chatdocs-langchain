@@ -7,7 +7,7 @@ import streamlit as st
 
 # ----------------- LOAD CHAT MODEL -----------------
 @st.cache_resource
-def load_chat_model(model, temperature=0.8, num_ctx=8192, reasoning=None):
+def load_chat_model(model, temperature=0.6, num_ctx=8192, reasoning=None):
     return ChatOllama(model=model, temperature=temperature, num_ctx=num_ctx, reasoning=reasoning, validate_model_on_init=True)
 
 
@@ -24,7 +24,8 @@ def load_vector_store(embedding_model: str):
 # ----------------- CHAT PROMPT TEMPLATE TO FILL IN VARIABLES LATER -----------------
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
+
+# from langchain_core.output_parsers import StrOutputParser
 
 prompt_template = ChatPromptTemplate.from_messages(
     [
@@ -57,16 +58,24 @@ prompt_template = ChatPromptTemplate.from_messages(
 
 @st.cache_resource
 def get_chain(chat_model: ChatOllama):
-    parser = StrOutputParser()
-    chain = prompt_template | chat_model | parser
+    # parser = StrOutputParser()
+    chain = prompt_template | chat_model
     return chain
 
 
 # ----------------- SOME MODEL NAMES -----------------
 
 
-chat_models = ["gemma2:2b", "gemma3:4b", "llama3.2"]
-embedding_models = ["embeddinggemma:300m", "nomic-embed-text"]
+chat_models = [
+    "gemma2:2b",
+    "gpt-oss:20b-cloud",
+    "gpt-oss:120b-cloud",
+    "kimi-k2-thinking:cloud",
+    "gemma3:4b",
+    "llama3.2",
+    "phi4-reasoning:14b",
+]
+embedding_models = ["embeddinggemma:300m", "nomic-embed-text", "qwen3-embedding", "all-minilm"]
 
 # reasoning_options = {
 #     ""

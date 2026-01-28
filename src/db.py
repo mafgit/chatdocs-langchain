@@ -14,7 +14,7 @@ def setup():
             chat_model TEXT DEFAULT "gemma2:2b",
             style TEXT DEFAULT "Normal",
             embedding_model TEXT DEFAULT "embeddinggemma:300m",
-            temperature NUMERIC DEFAULT 0.8
+            temperature NUMERIC DEFAULT 0.6
         );
         
         create table if not exists chats (
