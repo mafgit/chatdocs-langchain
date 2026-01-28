@@ -4,6 +4,7 @@ Chat with LLMs, attach documents, create multiple chats!
 
 ## TODOS:
 
+- add citations
 - add youtube transcripts
 - add website content reading
 - add xlsx
@@ -16,9 +17,9 @@ Chat with LLMs, attach documents, create multiple chats!
 - add sqlite3
 - make relevant content getting better
 - learn about retrievalQA
-- thinking etc status should be inside ai chat message, not human
+- ~~some statuses should be inside ai chat message, not human~~
 - make readme better with new images
-- make system message / CONTEXT, PROMPT, etc better
+- ~~make system message / CONTEXT, PROMPT, etc better~~
 - add user auth
 - ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
 - ~~add option of using whichever model~~

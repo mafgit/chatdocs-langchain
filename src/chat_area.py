@@ -1,16 +1,23 @@
 import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from handle_files import handle_files
+from handle_docs import read_files_and_extract_chunks, save_files, get_context_from_attachments
 from typing import Tuple, Literal, Optional, Sequence
 from main import load_chat_model, load_vector_store, get_chain, embedding_models, chat_models, prompt_template
 import time
 from random import random
+import re
 
 
 def render_file_download_buttons(files_info):
-    for filename, file_size, file_location, mime_type in files_info:
+    for file_info in files_info:
+        filename, file_size, file_path, mime_type = (
+            file_info["filename"],
+            file_info["file_size"],
+            file_info["file_path"],
+            file_info["mime_type"],
+        )
         _, _, label = convert_file_size(filename, file_size)
-        with open(file_location, "rb") as f:
+        with open(file_path, "rb") as f:
             st.download_button(
                 label=label,
                 data=f,
@@ -124,9 +131,20 @@ def main():
     def stream_generator(chunks):
         response = ""
 
+        # total_citations = []
+        # citation_pattern = r"\[\[\SOURCE_(\d+)]\]"
+        # replacement_pattern = r"\[\1\]"
+
         for chunk in chunks:
-            response += chunk
-            yield chunk
+            formatted_chunk = chunk
+            # citation_numbers = re.findall(citation_pattern, chunk)
+            # if citation_numbers:
+            #     formatted_chunk = re.sub(citation_pattern, replacement_pattern, chunk)
+            # else:
+            #     formatted_chunk = chunk
+
+            response += formatted_chunk
+            yield formatted_chunk
 
         current_chat_history.append(Message(content=response, role="ai", files_info=[]))
         st.session_state["disabled"] = False
@@ -169,69 +187,26 @@ def main():
 
             with st.chat_message("human"):
 
-                # ----------------- FILE HANDLING & CHUNKING -----------------
+                # ----------------- SAVING FILES -----------------
 
                 files_info = None
                 if files:
                     with st.status("Handling attached documents"):
                         with st.status("Saving files & getting their contents & info"):
-                            docs, files_info = handle_files(files, user_id=user_id, chat_id=current_chat_id)
+                            files_info = save_files(files)
 
-                        if docs:
+                        # ----------------- READING FILES AND EXTRACTING CHUNKS -----------------
+
+                        chunks = read_files_and_extract_chunks(files_info, user_id, current_chat_id)
+                        if chunks:
                             with st.status("Splitting into chunks"):
                                 splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
-                                chunks = splitter.split_documents(docs)
+                                chunks = splitter.split_documents(chunks)
                                 # chunks[0].page_content, chunks[0].metadata
 
                             if chunks:
                                 with st.status("Adding chunks to vector store"):
                                     vector_store.add_documents(chunks)
-
-                # --------------- VECTOR DB RETRIEVAL AND CONTEXT BUILDING ---------------
-
-                context_string = ""
-                if vector_store._collection.count() > 0:
-                    with st.status("Finding relevant context"):
-                        results = vector_store.similarity_search(
-                            query=original_prompt_text,
-                            k=5,
-                            filter={"$and": [{"user_id": user_id}, {"chat_id": current_chat_id}]},  # pyright: ignore
-                        )
-
-                        # context = "\n\n".join([doc.page_content + " [" + doc.metadata["source"] + "]" for doc in results])
-
-                        context_chunk_arr = []
-                        for i, doc in enumerate(results):
-                            fields = [
-                                "source",
-                                "page",
-                                "page_number",
-                                "header",
-                                "title",
-                                "description",
-                                "section",
-                                "category",
-                                "author",
-                                "language",
-                                "Header 1",
-                                "Header 2",
-                                "Header 3",
-                            ]
-                            metadata_strs = []
-                            for key in fields:
-                                if key in doc.metadata:
-                                    metadata_strs.append(
-                                        f"- **{key.upper()}**: {doc.metadata[key] if key != 'source' else '`' + doc.metadata[key] + '`'}"
-                                    )
-
-                            chunk_context_string = (
-                                f"#### REFERENCE {i+1}\n" f"{'\n'.join(metadata_strs)}\n" f"- **CONTENT**:\n{doc.page_content}"
-                            )
-                            st.info(chunk_context_string)
-                            context_chunk_arr.append(chunk_context_string)
-
-                        context_string = "\n---\n\n".join(context_chunk_arr)
-                        print("<CCCOOONTEXT>" + context_string + "</CCCOOONTEXT>")
 
                 # ---------------- FILE DOWNLOAD BUTTONS ----------------
 
@@ -250,19 +225,29 @@ def main():
                 finally:
                     st.session_state["disabled"] = False
 
+            # --------------- AI RESPONSE ELEMENT ---------------
+
+            with st.chat_message("ai"):
+
+                # --------------- VECTOR DB RETRIEVAL AND CONTEXT BUILDING ---------------
+
+                context_string = get_context_from_attachments(
+                    vector_store, original_prompt_text, chat_id=current_chat_id, user_id=user_id
+                )
+
                 # -------------- GETTING CHAIN AND STREAMING --------------
 
                 chain = get_chain(chat_model=chat_model)
 
                 input = {
                     "style_rule": f"- Adopt a {selected_style} tone" if selected_style != "Normal" else "",
-                    "resources": (
+                    "attachments": (
                         f"Following contents were found from documents attached. Use them to answer user query. Also reference them.\n\n---\n{context_string.strip()}"
                         if context_string.strip()
-                        else "[NO RELEVANT RESOURCE ATTACHED BY USER]"
+                        else "[NO RELEVANT ATTACHMENT UPLOADED BY USER]"
                     ),
                     "human_input": (
-                        "I have attached some resources" if files and not original_prompt_text else original_prompt_text
+                        "I have attached some attachments" if files and not original_prompt_text else original_prompt_text
                     ),
                     "chat_history": [msg.to_langchain() for msg in current_chat_history],
                 }
@@ -276,9 +261,6 @@ def main():
                 original_message = Message(content=original_prompt_text, role="human", files_info=files_info)
                 current_chat_history.append(original_message)
 
-            # --------------- AI RESPONSE ELEMENT ---------------
-
-            with st.chat_message("ai"):
                 st.write_stream(stream_generator(chunks))
 
         st.session_state["disabled"] = False

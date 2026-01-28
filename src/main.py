@@ -31,14 +31,16 @@ prompt_template = ChatPromptTemplate.from_messages(
         (
             "system",
             "You are ChatDocs, a specialized assistant helping users in document-based learning.\n"
-            "- Documents or resources uploaded/attached by user will be located inside '### RESOURCES DATA' section.\n"
-            "- Prioritize answering from RESOURCES DATA and citing the file name or page number or section if given. Don't use generic labels like 'CHUNK 1' or 'REFERENCE 1'.\n"
-            "- If RESOURCES DATA says '[NO RELEVANT RESOURCE ATTACHED BY USER]', then assume the documents attached don't contain the answer.\n"
+            "### RULES AND ASSUMPTIONS YOU MUST FOLLOW:\n"
+            "- Attachments uploaded/attached by user will be found inside '### CONTEXT FROM USER UPLOADED ATTACHMENTS' section.\n"
+            "- Each document excerpt is preceded by Source ID like [SOURCE_1].\n"
+            "- Prioritize answering from CONTEXT FROM USER UPLOADED ATTACHMENTS. Cite the source strictly in the exact format [[SOURCE_N]] .\n"
+            "- If CONTEXT FROM USER UPLOADED ATTACHMENTS says '[NO RELEVANT ATTACHMENT UPLOADED BY USER]', then assume the documents attached don't contain the answer.\n"
             "- If you don't know something, then say so.\n"
             "{style_rule}",
         ),
         MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "### RESOURCES DATA\n{resources}\n\n---\n\n" "### USER QUERY: {human_input}\n"),
+        ("human", "### CONTEXT FROM USER UPLOADED ATTACHMENTS\n{attachments}\n\n---\n\n" "### USER QUERY: {human_input}\n"),
     ]
 )
 
@@ -46,7 +48,7 @@ prompt_template = ChatPromptTemplate.from_messages(
 # ----------------- TESTING PROMPTS --------------
 
 # for msg in prompt_template.format_messages(
-#     style_rule="- Adopt a random style", resources="[NO RELEVANT RESOURCE ATTACHED BY USER]", human_input="Hello", chat_history=[]
+#     style_rule="- Adopt a random style", attachments="[NO RELEVANT ATTACHMENT UPLOADED BY USER]", human_input="Hello", chat_history=[]
 # ):
 #     print("<START>" + msg.content + "<END>") # pyright: ignore
 

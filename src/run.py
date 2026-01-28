@@ -8,8 +8,8 @@ from random import randint
 
 def initialize_session_state():
     if not "chats" in st.session_state:
-        # uuid4().hex
-        new_chat_id = 'dc29e7c88c62475e9d2ea5d50899faa9'
+        # new_chat_id = 'dc29e7c88c62475e9d2ea5d50899faa9'
+        new_chat_id = uuid4().hex
         st.session_state["chats"] = {
             new_chat_id: {"name": generate_unique_name(), "history": [], "last_interaction": time.time()}
         }
