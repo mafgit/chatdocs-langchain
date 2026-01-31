@@ -6,13 +6,13 @@ import streamlit as st
 
 
 # ----------------- LOAD CHAT MODEL -----------------
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_chat_model(model, temperature=0.6, num_ctx=8192, reasoning=None):
     return ChatOllama(model=model, temperature=temperature, num_ctx=num_ctx, reasoning=reasoning, validate_model_on_init=True)
 
 
 # ----------------- LOAD VECTOR DB -----------------
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_vector_store(embedding_model: str):
     embeddings = OllamaEmbeddings(model=embedding_model, validate_model_on_init=True)
     collection_name = embedding_model.replace(":", "-")
@@ -35,7 +35,7 @@ prompt_template = ChatPromptTemplate.from_messages(
             "### RULES AND ASSUMPTIONS YOU MUST FOLLOW:\n"
             "- Attachments uploaded/attached by user will be found inside '### CONTEXT FROM USER UPLOADED ATTACHMENTS' section.\n"
             "- Each document excerpt is preceded by Source ID like [SOURCE_1].\n"
-            "- Prioritize answering from CONTEXT FROM USER UPLOADED ATTACHMENTS. Cite the source strictly in the exact format [[SOURCE_N]] .\n"
+            "- Prioritize answering from CONTEXT FROM USER UPLOADED ATTACHMENTS. Cite the source strictly in the exact format: [id] where source id is wrapped in square brackets.\n"
             "- If CONTEXT FROM USER UPLOADED ATTACHMENTS says '[NO RELEVANT ATTACHMENT UPLOADED BY USER]', then assume the documents attached don't contain the answer.\n"
             "- If you don't know something, then say so.\n"
             "{style_rule}",
@@ -56,7 +56,7 @@ prompt_template = ChatPromptTemplate.from_messages(
 # ----------------- GET CHAIN -----------------
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def get_chain(chat_model: ChatOllama):
     # parser = StrOutputParser()
     chain = prompt_template | chat_model

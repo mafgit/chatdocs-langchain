@@ -6,6 +6,14 @@ from main import load_chat_model, load_vector_store, get_chain, embedding_models
 import time
 from random import random
 import re
+from db import insert_chat_message, create_chat, delete_chat, get_chat_messages
+
+
+def render_statuses(statuses):
+    for status in statuses:
+        with st.status(label=status["label"], state=status["state"]):
+            if status["content"]:
+                st.markdown(status["content"])
 
 
 def render_file_download_buttons(files_info):
@@ -48,11 +56,13 @@ class Message:
         self,
         role: Literal["ai", "human", "system"],
         content: str = "",
-        files_info: Optional[Sequence[Tuple[str, float, str, str]]] = None,
+        files_info: Optional[Sequence[dict]] = None,
+        statuses: Optional[Sequence[dict]] = None,
     ):
         self.content = content
         self.role = role
         self.files_info = files_info or []
+        self.statuses = statuses or []
 
     def to_langchain(self):
         return {"role": self.role, "content": self.content}
@@ -128,11 +138,15 @@ def main():
         for item in current_chat_history:
             if item.role == "human":
                 with st.chat_message("human"):
+                    if item.statuses:
+                        render_statuses(item.statuses)
                     if item.files_info:
                         render_file_download_buttons(item.files_info)
                     st.markdown(item.content)
             elif item.role in {"ai", "assistant"}:
                 with st.chat_message("ai"):
+                    if item.statuses:
+                        render_statuses(item.statuses)
                     st.markdown(item.content)
 
     user_id = st.session_state["user_id"]
@@ -268,47 +282,78 @@ def main():
                     # thinking_started = False
 
                     if selected_reasoning in {"Default", "Off"}:
-                        status = ":material/memory: Processing"
-                    else:
-                        status = ":material/lightbulb: Thinking"
+                        thinking_or_processing = "processing"
+                        final_thinking_status_label = ":material/memory: Processing"
 
-                    full_thinking = ""
-                    thinking_status = st.status(status)
+                    else:
+                        thinking_or_processing = "thinking"
+                        final_thinking_status_label = ":material/lightbulb: Thinking"
+
+                    final_thinking_content = ""
+                    final_thinking_status_state = "running"
+                    thinking_status = st.status(final_thinking_status_label)
                     thinking_placeholder = thinking_status.empty()
+                    thinking_completed = False
 
                     try:
                         for chunk in chunks:
                             if st.session_state.get("stop", False) == True:
                                 st.session_state["stop"] = False
-                                current_chat_history.append(Message(content=response, role="ai", files_info=[]))
-                                st.session_state["disabled"] = False
                                 return
 
                             if not isinstance(chunk, str):
 
                                 reasoning_content = chunk.additional_kwargs.get("reasoning_content")
                                 if reasoning_content:
-                                    full_thinking += reasoning_content
-                                    thinking_placeholder.markdown(full_thinking)  # pyright: ignore
+                                    final_thinking_content += reasoning_content
+                                    thinking_placeholder.markdown(final_thinking_content)
 
                                 if chunk.content:
-                                    thinking_status.update(  # pyright: ignore
-                                        label=status,
-                                        state="complete",
-                                    )
+                                    if not thinking_completed:
+                                        final_thinking_status_state = "complete"
+                                        thinking_status.update(
+                                            label=final_thinking_status_label,
+                                            state=final_thinking_status_state,
+                                        )
+                                        thinking_completed = True
                                     response += chunk.content
                                     yield chunk.content
                             else:
                                 response += chunk
                                 yield chunk
 
+                        current_chat_history.append(
+                            Message(
+                                content=response,
+                                role="ai",
+                                files_info=[],
+                                statuses=[
+                                    {
+                                        "label": ":material/document_search: Finding relevant context",
+                                        "content": context_string,
+                                        "state": "complete",
+                                        "type": "context",
+                                    },
+                                    {
+                                        "label": final_thinking_status_label,
+                                        "content": final_thinking_content,
+                                        "state": final_thinking_status_state,
+                                        "type": thinking_or_processing,
+                                    },
+                                ],
+                            )
+                        )
+
                     except Exception as e:
                         # raise e
                         err = str(e)
                         if "does not support thinking" in err:
                             if thinking_status:
+                                final_thinking_status_label = f":material/light_off: Thinking not supported by {selected_chat_model}. Retry after turning off thinking."
+                                final_thinking_status_state = "error"
                                 thinking_status.update(
-                                    label=f":material/light_off: Thinking not supported by {selected_chat_model}", state="error"
+                                    label=final_thinking_status_label,
+                                    state=final_thinking_status_state,
                                 )
                         else:
                             st.error("An error occurred:" + err)
@@ -316,13 +361,13 @@ def main():
                         st.session_state["disabled"] = False
                         st.stop()
 
-                    current_chat_history.append(Message(content=response, role="ai", files_info=[]))
-                    st.session_state["disabled"] = False
-                
-                stop_btn_container = st.empty()
-                if stop_btn_container.button(":material/stop_circle:"):
-                    st.session_state["stop"] = True
-                    stop_btn_container.empty()
+                    finally:
+                        st.session_state["disabled"] = False
+
+                # stop_btn_container = st.empty()
+                # if stop_btn_container.button(":material/stop_circle:"):
+                #     st.session_state["stop"] = True
+                #     stop_btn_container.empty()
                 st.write_stream(stream_generator(chunks))
 
         st.session_state["disabled"] = False
