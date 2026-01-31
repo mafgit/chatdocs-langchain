@@ -34,8 +34,8 @@ prompt_template = ChatPromptTemplate.from_messages(
             "You are ChatDocs, a specialized assistant helping users in document-based learning.\n"
             "### RULES AND ASSUMPTIONS YOU MUST FOLLOW:\n"
             "- Attachments uploaded/attached by user will be found inside '### CONTEXT FROM USER UPLOADED ATTACHMENTS' section.\n"
-            "- Each document excerpt is preceded by Source ID like [SOURCE_1].\n"
-            "- Prioritize answering from CONTEXT FROM USER UPLOADED ATTACHMENTS. Cite the source strictly in the exact format: [id] where source id is wrapped in square brackets.\n"
+            "- Each document excerpt is preceded by Source ID like [SOURCE 1].\n"
+            "- Prioritize answering from CONTEXT FROM USER UPLOADED ATTACHMENTS. Cite the source strictly in the exact format: [ID] where the numerical ID is wrapped in square brackets.\n"
             "- If CONTEXT FROM USER UPLOADED ATTACHMENTS says '[NO RELEVANT ATTACHMENT UPLOADED BY USER]', then assume the documents attached don't contain the answer.\n"
             "- If you don't know something, then say so.\n"
             "{style_rule}",
@@ -69,7 +69,6 @@ def get_chain(chat_model: ChatOllama):
 chat_models = [
     "gemma2:2b",
     "gpt-oss:20b-cloud",
-    "gpt-oss:120b-cloud",
     "kimi-k2-thinking:cloud",
     "gemma3:4b",
     "llama3.2",

@@ -1,12 +1,11 @@
 import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from handle_docs import read_files_and_extract_chunks, save_files, get_context_from_attachments
-from typing import Tuple, Literal, Optional, Sequence
-from main import load_chat_model, load_vector_store, get_chain, embedding_models, chat_models, prompt_template
+from typing import Literal, Optional, Sequence
+from main import load_chat_model, load_vector_store, get_chain, embedding_models, chat_models
 import time
 from random import random
-import re
-from db import insert_chat_message, create_chat, delete_chat, get_chat_messages
+import db
 
 
 def render_statuses(statuses):
@@ -51,37 +50,54 @@ def convert_file_size(filename, file_size):
     return file_size, unit, label
 
 
-class Message:
-    def __init__(
-        self,
-        role: Literal["ai", "human", "system"],
-        content: str = "",
-        files_info: Optional[Sequence[dict]] = None,
-        statuses: Optional[Sequence[dict]] = None,
-    ):
-        self.content = content
-        self.role = role
-        self.files_info = files_info or []
-        self.statuses = statuses or []
+# class Message:
+#     def __init__(
+#         self,
+#         role: Literal["ai", "human", "system"],
+#         content: str = "",
+#         files_info: Optional[Sequence[dict]] = None,
+#         statuses: Optional[Sequence[dict]] = None,
+#     ):
+#         self.content = content
+#         self.role = role
+#         self.files_info = files_info or []
+#         self.statuses = statuses or []
 
-    def to_langchain(self):
-        return {"role": self.role, "content": self.content}
+#     def to_langchain(self):
+#         return {"role": self.role, "content": self.content}
 
 
 def main():
-    st.set_page_config("ChatDocs", page_icon=":material/borg:")
-
     chats = st.session_state["chats"]
     current_chat_id = st.session_state["current_chat_id"]
-    current_chat = chats[current_chat_id]
-    current_chat_history = current_chat["history"]
+    current_chat = None
+    for c in chats:
+        if c["id"] == current_chat_id:
+            current_chat = c
+            break
 
+    if not current_chat:
+        return
+
+    user_id = st.session_state["user_id"]
+
+    if "current_chat_history" not in st.session_state:
+        if current_chat_id == 0:
+            st.session_state["current_chat_history"] = []
+        else:
+            st.session_state["current_chat_history"] = db.get_chat_messages(current_chat_id)
+
+    current_chat_history = st.session_state["current_chat_history"]
+    
     left, right = st.columns([0.9, 0.1])
     with left:
         st.subheader(":material/borg: " + current_chat["name"])
     with right:
         with st.container(horizontal_alignment="right"):
-            st.button(":material/delete:")
+            if current_chat_id != 0:
+                if st.button(":material/delete:"):
+                    db.delete_chat(current_chat_id)
+                    st.rerun()
 
     # ---------------- PREFERENCES ----------------
 
@@ -94,37 +110,53 @@ def main():
             "Changing embedding model would require you to either re-upload documents or start a new chat for it to work properly",
             icon=":material/warning:",
         )
-        left, right = st.columns(2)
-        with left:
-            selected_chat_model = st.selectbox("Chat Model", chat_models, key="chat_model", accept_new_options=True)
-        with right:
-            selected_embedding_model = st.selectbox(
-                "Embedding Model", embedding_models, key="embedding_model", accept_new_options=True
+
+        with st.form("preferences", clear_on_submit=False, border=False):
+            left, right = st.columns(2)
+            with left:
+                selected_chat_model = st.selectbox("Chat Model", chat_models, key="chat_model", accept_new_options=True)
+            with right:
+                selected_embedding_model = st.selectbox(
+                    "Embedding Model",
+                    embedding_models,
+                    key="embedding_model",
+                    accept_new_options=True,
+                )
+
+            left, right = st.columns(2)
+            with left:
+                selected_reasoning = st.selectbox(
+                    "Reasoning (Only supported in some models)", ("Default", "Off", "Low", "Medium", "High"), key="reasoning"
+                )
+            with right:
+                selected_style = st.selectbox(
+                    "Style",
+                    (
+                        "Normal",
+                        "Professional, Polished, Precise",
+                        "Friendly, Warm, Chatty",
+                        "Efficient, Concise, Plain",
+                        "Candid, Direct, Encouraging",
+                        "Nerdy, Exploratory, Enthusiastic",
+                        "Quirky, Playful, Imaginative",
+                    ),
+                    key="style",
+                )
+
+            selected_temperature = st.slider(
+                "Temperature (Creativity) (Default = 0.6)", 0.0, 2.0, value=0.6, step=0.1, format="plain", key="temperature"
             )
 
-        left, right = st.columns(2)
-        with left:
-            selected_reasoning = st.selectbox(
-                "Reasoning (Only supported in some models)", ("Default", "Off", "Low", "Medium", "High"), key="reasoning"
-            )
-        with right:
-            selected_style = st.selectbox(
-                "Style",
-                (
-                    "Normal",
-                    "Professional, Polished, Precise",
-                    "Friendly, Warm, Chatty",
-                    "Efficient, Concise, Plain",
-                    "Candid, Direct, Encouraging",
-                    "Nerdy, Exploratory, Enthusiastic",
-                    "Quirky, Playful, Imaginative",
-                ),
-                key="style",
-            )
+            submitted = st.form_submit_button("Save Preferences", type="primary", icon=":material/save:", width="stretch")
 
-        selected_temperature = st.slider(
-            "Temperature (Creativity) (Default = 0.6)", 0.0, 2.0, value=0.6, step=0.1, format="plain", key="temperature"
-        )
+            if submitted:
+                db.update_user_preferences(
+                    chat_model=selected_chat_model,
+                    embedding_model=selected_embedding_model,
+                    style=selected_style,
+                    temperature=selected_temperature,
+                    id=user_id,
+                )
 
     # ---------------- GREETING OR CHAT HISTORY LOOP RENDERING ----------------
 
@@ -135,21 +167,21 @@ def main():
             f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:0.8;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
         )
     else:
+        print("\n\n\nITEMS")
         for item in current_chat_history:
-            if item.role == "human":
+            print(item)
+            if item["role"] == "human":
                 with st.chat_message("human"):
-                    if item.statuses:
-                        render_statuses(item.statuses)
-                    if item.files_info:
-                        render_file_download_buttons(item.files_info)
-                    st.markdown(item.content)
-            elif item.role in {"ai", "assistant"}:
+                    if item["statuses"]:
+                        render_statuses(item["statuses"])
+                    if item["files_info"]:
+                        render_file_download_buttons(item["files_info"])
+                    st.markdown(item["content"])
+            elif item["role"] in {"ai", "assistant"}:
                 with st.chat_message("ai"):
-                    if item.statuses:
-                        render_statuses(item.statuses)
-                    st.markdown(item.content)
-
-    user_id = st.session_state["user_id"]
+                    if item["statuses"]:
+                        render_statuses(item["statuses"])
+                    st.markdown(item["content"])
 
     # ----------------- PROMPT INPUT ELEMENT -----------------
 
@@ -172,24 +204,23 @@ def main():
             error = True
 
         if not error:
+            greetings_div.empty()
+
             try:
                 vector_store = load_vector_store(selected_embedding_model)
             except:
                 st.error(
-                    "Invalid model selected, please verify the exact name of the embedding model you have selected in preferences from Ollama."
+                    f"Invalid model selected {selected_embedding_model}, please verify the exact name of the embedding model you have selected in preferences from Ollama."
                 )
                 st.stop()
             finally:
                 st.session_state["disabled"] = False
 
-            st.session_state["chats"][current_chat_id]["last_interaction"] = time.time()
-            greetings_div.empty()
-
             with st.chat_message("human"):
 
                 # ----------------- SAVING FILES -----------------
 
-                files_info = None
+                files_info = []
                 if files:
                     with st.status(":material/document_scanner: Handling attached documents"):
                         with st.status(":material/save: Saving files & getting their contents & info"):
@@ -227,7 +258,7 @@ def main():
                     )
                 except:
                     st.error(
-                        "Invalid model selected, please verify the exact name of the chat model you have selected in preferences from Ollama."
+                        f"Invalid model selected {selected_chat_model}, please verify the exact name of the chat model you have selected in preferences from Ollama."
                     )
                     st.stop()
                 finally:
@@ -257,17 +288,40 @@ def main():
                     "human_input": (
                         "I have attached some attachments" if files and not original_prompt_text else original_prompt_text
                     ),
-                    "chat_history": [msg.to_langchain() for msg in current_chat_history],
+                    "chat_history": current_chat_history,
                 }
 
                 # testing prompt
-                print("FINAL PROMPT BEING SENT\n", prompt_template.format_messages(**input))
+                # print("FINAL PROMPT BEING SENT\n", prompt_template.format_messages(**input))
 
                 chunks = chain.stream(input=input)
 
-                # appending original message to history
-                original_message = Message(content=original_prompt_text, role="human", files_info=files_info)
+                # -------------- create new chat and update the session state ------------
+
+                if len(current_chat_history) == 0:
+                    new_chat_id = db.create_chat(current_chat["name"], user_id)
+                    current_chat_id = new_chat_id
+                    st.session_state["current_chat_id"] = new_chat_id
+                    for chat in st.session_state["chats"]:
+                        if chat["id"] == 0:
+                            chat["id"] = new_chat_id
+
+                # ------------ inserting original message to db and history ---------------------
+
+                db.insert_chat_message(
+                    chat_id=current_chat_id, content=original_prompt_text, role="human", files_info=files_info, statuses=[]
+                )
+                original_message = {"content": original_prompt_text, "role": "human", "files_info": files_info}
                 current_chat_history.append(original_message)
+
+                # ------------------- updating last interaction -------------------
+
+                for chat in st.session_state["chats"]:
+                    if chat["id"] == current_chat_id:
+                        new_time = int(time.time())
+                        db.update_last_interaction(chat_id=current_chat_id, new_time=new_time)
+                        chat["last_interaction"] = new_time
+                        break
 
                 # ----------------- STREAM GENERATOR -----------------
 
@@ -322,26 +376,23 @@ def main():
                                 response += chunk
                                 yield chunk
 
-                        current_chat_history.append(
-                            Message(
-                                content=response,
-                                role="ai",
-                                files_info=[],
-                                statuses=[
-                                    {
-                                        "label": ":material/document_search: Finding relevant context",
-                                        "content": context_string,
-                                        "state": "complete",
-                                        "type": "context",
-                                    },
-                                    {
-                                        "label": final_thinking_status_label,
-                                        "content": final_thinking_content,
-                                        "state": final_thinking_status_state,
-                                        "type": thinking_or_processing,
-                                    },
-                                ],
-                            )
+                        statuses = [
+                            {
+                                "label": ":material/document_search: Finding relevant context",
+                                "content": context_string,
+                                "state": "complete",
+                                "type": "context",
+                            },
+                            {
+                                "label": final_thinking_status_label,
+                                "content": final_thinking_content,
+                                "state": final_thinking_status_state,
+                                "type": thinking_or_processing,
+                            },
+                        ]
+                        current_chat_history.append({"content": response, "role": "ai", "files_info": [], "statuses": statuses})
+                        db.insert_chat_message(
+                            chat_id=current_chat_id, content=response, role="ai", files_info=[], statuses=statuses
                         )
 
                     except Exception as e:

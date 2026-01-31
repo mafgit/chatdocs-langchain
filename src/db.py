@@ -27,7 +27,8 @@ def setup():
         create table if not exists chats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER REFERENCES users(id),
-            name TEXT NOT NULL
+            name TEXT NOT NULL,
+            last_interaction INTEGER DEFAULT (unixepoch())
         );
 
         create table if not exists chat_messages (
@@ -36,11 +37,18 @@ def setup():
             content TEXT,
             role TEXT CHECK(role in ('system', 'ai', 'human')),
             files_info TEXT CHECK(json_valid(files_info)),
-            statuses TEXT CHECK(json_valid(statuses))
+            statuses TEXT CHECK(json_valid(statuses)),
+            sent_at INTEGER DEFAULT (unixepoch())
         );
 
         -- files_info is gonna be array of {filename, file_path, file_size, mime_type}
         -- statuses is gonna be like {thinking, processing, context}
+
+        insert into users (
+            id,
+            name,
+            password
+        ) values (0, "Abdullah", "password");
     """
 
     conn = get_conn()
@@ -52,20 +60,20 @@ def setup():
     conn.close()
 
 
-# setup()
-
-
-def create_chat(name: str, user_id: int):
+def create_chat(name: str, user_id: int) -> int:
     conn = get_conn()
     cursor = conn.cursor()
 
     query = """
-    insert into chats (name, user_id) values (?, ?)
+    insert into chats (name, user_id) values (?, ?) returning id
     """
     cursor.execute(query, (name, user_id))
+    new_id = cursor.fetchone()[0]
 
     conn.commit()
     conn.close()
+
+    return new_id
 
 
 def delete_chat(id: int):
@@ -81,12 +89,14 @@ def delete_chat(id: int):
     conn.close()
 
 
-def get_user_chats(user_id: int):
+def get_chats(user_id: int):
     conn = get_conn()
     cursor = conn.cursor()
 
     query = """
-    select * from chats where user_id = ?
+    select id, user_id, name, last_interaction from chats
+    where user_id = ?
+    order by last_interaction DESC
     """
     cursor.execute(query, (user_id,))
     rows = cursor.fetchall()
@@ -94,7 +104,11 @@ def get_user_chats(user_id: int):
     conn.commit()
     conn.close()
 
-    return rows
+    return_data = []
+    for id, user_id, name, last_interaction in rows:
+        return_data.append({"id": id, "user_id": user_id, "name": name, "last_interaction": last_interaction})
+
+    return return_data
 
 
 def get_chat_messages(chat_id: int):
@@ -102,8 +116,9 @@ def get_chat_messages(chat_id: int):
     cursor = conn.cursor()
 
     query = """
-    select * from chat_messages
+    select id, chat_id, content, role, files_info, statuses, sent_at from chat_messages
     where chat_id = ?
+    order by sent_at ASC
     """
     cursor.execute(query, (chat_id,))
     rows = cursor.fetchall()
@@ -111,7 +126,21 @@ def get_chat_messages(chat_id: int):
     conn.commit()
     conn.close()
 
-    return rows
+    return_data = []
+    for id, chat_id, content, role, files_info, statuses, sent_at in rows:
+        return_data.append(
+            {
+                "id": id,
+                "chat_id": chat_id,
+                "content": content,
+                "role": role,
+                "files_info": json.loads(files_info),
+                "statuses": json.loads(statuses),
+                "sent_at": sent_at,
+            }
+        )
+
+    return return_data
 
 
 from typing import List, Literal
@@ -119,7 +148,7 @@ import json
 
 
 def insert_chat_message(
-    chat_id: int, content: str, role: Literal["system", "ai", "human"], files_info: List[dict], statuses: dict
+    chat_id: int, content: str, role: Literal["system", "ai", "human"], files_info: List[dict], statuses: List[dict]
 ):
     conn = get_conn()
     cursor = conn.cursor()
@@ -134,3 +163,54 @@ def insert_chat_message(
 
     conn.commit()
     conn.close()
+
+
+def update_last_interaction(chat_id: int, new_time: int):
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    query = """
+    update chats set last_interaction = ? where id = ?
+    """
+    cursor.execute(query, (new_time, chat_id))
+
+    conn.commit()
+    conn.close()
+
+
+def update_user_preferences(id, chat_model, embedding_model, temperature, style):
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    query = f"""
+    update users set chat_model = ?, embedding_model = ?, temperature = ?, style = ? where id = ?
+    """
+    cursor.execute(query, (chat_model, embedding_model, temperature, style, id))
+
+    conn.commit()
+    conn.close()
+
+    # print(id, chat_model, embedding_model, temperature, style)
+
+
+def get_user_info(user_id: int):
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    query = """
+    select name, temperature, embedding_model, chat_model, style from users
+    where id = ?
+    """
+    cursor.execute(query, (user_id,))
+    name, temperature, embedding_model, chat_model, style = cursor.fetchone()
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "name": name,
+        "temperature": temperature,
+        "embedding_model": embedding_model,
+        "chat_model": chat_model,
+        "style": style,
+    }

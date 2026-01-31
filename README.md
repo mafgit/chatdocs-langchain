@@ -34,21 +34,24 @@ Chat with LLMs, attach documents, create multiple chats!
 1. `python -m venv .venv` to create a virtual environment
 1. `pip install -r requirements.txt`
 1. Install Ollama from [https://ollama.com/](https://ollama.com/)
+1. `python src/setup.py` to initialize database etc
 1. `streamlit run src/run.py`
 
-## TODOS:
+----
 
-- add citations
+#### TODOS:
+
+- ~~add citations~~
 - add youtube transcripts
 - add website content reading
 - add xlsx
 - add better docx reader
-- delete chat
+- ~~delete chat~~
 - stop response in middle
 - catch errors regarding not logged in or network error or other ollama errors
 - ~~add thinking models functionality~~
 - changing preferences in the middle of response stops it (reruns the flow)
-- add sqlite3
+- ~~add sqlite3~~
 - make relevant content getting better
 - learn about retrievalQA
 - ~~some statuses should be inside ai chat message, not human~~
