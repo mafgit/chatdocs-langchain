@@ -1,6 +1,11 @@
 import streamlit as st
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from handle_docs import read_files_and_extract_chunks, save_files, get_context_from_attachments
+from handle_docs import (
+    read_files_and_extract_chunks,
+    save_files,
+    get_context_from_attachments,
+    get_web_results,
+    split_and_add_to_store,
+)
 from main import load_chat_model, load_vector_store, get_chain, embedding_models, chat_models
 import time
 from random import random
@@ -91,7 +96,7 @@ def main():
 
     left, right = st.columns([0.9, 0.1])
     with left:
-        st.subheader(":material/borg: " + current_chat["name"])
+        st.subheader("✦︎  " + current_chat["name"])
     with right:
         with st.container(horizontal_alignment="right"):
             if current_chat_id != 0:
@@ -165,7 +170,7 @@ def main():
 
     if len(current_chat_history) == 0:
         greetings_div.html(
-            f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:1;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
+            f'<div style="display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:max(275px,100%);margin-top:auto;opacity:1;"><p style="font-size:1.2rem;">{st.session_state["greeting_msg"]}</p><p style="opacity:0.8;">💡 Start prompt with /search to enable web search.<p/></div>'
         )
     else:
         for item in current_chat_history:
@@ -207,7 +212,7 @@ def main():
 
             try:
                 vector_store = load_vector_store(selected_embedding_model)
-                
+
                 chat_model = load_chat_model(
                     selected_chat_model,
                     temperature=selected_temperature,
@@ -226,7 +231,6 @@ def main():
             finally:
                 st.session_state["disabled"] = False
 
-            
             # -------------- create new chat and update the session state ------------
 
             if len(current_chat_history) == 0:
@@ -238,7 +242,6 @@ def main():
                         chat["id"] = new_chat_id
 
             with st.chat_message("human"):
-
                 # ----------------- SAVING FILES -----------------
 
                 files_info = []
@@ -250,16 +253,7 @@ def main():
                         # ----------------- READING FILES AND EXTRACTING CHUNKS -----------------
 
                         chunks = read_files_and_extract_chunks(files_info, user_id, current_chat_id)
-                        if chunks:
-                            with st.status(":material/split_scene_left: Splitting into chunks"):
-                                splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
-                                chunks = splitter.split_documents(chunks)
-                                # chunks[0].page_content, chunks[0].metadata
-
-                            if chunks:
-                                with st.status(":material/splitscreen_add: Adding chunks to vector store"):
-                                    vector_store.add_documents(chunks)
-
+                        split_and_add_to_store(chunks, vector_store)
                 # ---------------- FILE DOWNLOAD BUTTONS ----------------
 
                 if files_info:
@@ -270,6 +264,33 @@ def main():
             # --------------- AI RESPONSE ELEMENT ---------------
 
             with st.chat_message("ai"):
+
+                statuses = []
+
+                # ------------- WEB SEARCH -------------
+
+                if original_prompt_text.startswith("/search"):
+                    # original_prompt_text = original_prompt_text[7:]
+                    status_label = ":material/web: Searching Web"
+
+                    try:
+                        with st.status(status_label):
+                            chunks = get_web_results(original_prompt_text, chat_id=current_chat_id, user_id=user_id)
+                            split_and_add_to_store(chunks, vector_store)
+
+                        status_state = "complete"
+
+                    except:
+                        status_state = "error"
+                    finally:
+                        statuses.append(
+                            {
+                                "label": status_label,
+                                "content": "",
+                                "state": status_state,
+                                "type": "web_search",
+                            }
+                        )
 
                 # --------------- VECTOR DB RETRIEVAL AND CONTEXT BUILDING ---------------
 
@@ -380,20 +401,22 @@ def main():
                                 response += chunk
                                 yield chunk
 
-                        statuses = [
-                            {
-                                "label": ":material/document_search: Finding relevant context",
-                                "content": context_string,
-                                "state": "complete",
-                                "type": "context",
-                            },
-                            {
-                                "label": final_thinking_status_label,
-                                "content": final_thinking_content,
-                                "state": final_thinking_status_state,
-                                "type": thinking_or_processing,
-                            },
-                        ]
+                        statuses.extend(
+                            [
+                                {
+                                    "label": ":material/document_search: Finding relevant context",
+                                    "content": context_string,
+                                    "state": "complete",
+                                    "type": "context",
+                                },
+                                {
+                                    "label": final_thinking_status_label,
+                                    "content": final_thinking_content,
+                                    "state": final_thinking_status_state,
+                                    "type": thinking_or_processing,
+                                },
+                            ]
+                        )
                         current_chat_history.append({"content": response, "role": "ai", "files_info": [], "statuses": statuses})
                         db.insert_chat_message(
                             chat_id=current_chat_id, content=response, role="ai", files_info=[], statuses=statuses

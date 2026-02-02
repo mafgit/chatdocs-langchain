@@ -4,7 +4,10 @@ from pathlib import Path
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_chroma import Chroma
 import streamlit as st
-
+from ddgs import DDGS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from datetime import datetime
+from langchain_core.documents import Document
 
 mime_types = {
     "pdf": "application/pdf",
@@ -47,7 +50,7 @@ def save_files(files):
     return files_info
 
 
-def read_files_and_extract_chunks(files_info, user_id, chat_id):
+def read_files_and_extract_chunks(files_info, user_id: int, chat_id: int):
     all_chunks = []
 
     for file_info in files_info:
@@ -102,6 +105,29 @@ def read_files_and_extract_chunks(files_info, user_id, chat_id):
     return all_chunks
 
 
+def get_web_results(prompt: str, user_id: int, chat_id: int):
+    chunks = []
+
+    with DDGS() as ddgs:
+        results = ddgs.text(prompt, max_results=7)
+        for result in results:
+            chunk = Document(
+                page_content=result["body"],
+                metadata={
+                    "source": result["href"],
+                    "title": result["title"],
+                    "type": "web_search",
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+
+            chunks.append(chunk)
+
+    return chunks
+
+
 def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str, user_id: int, chat_id: int):
     count = vector_store._collection.count()
     if count == 0:
@@ -154,3 +180,15 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
         # print("<CCCOOONTEXT>" + context_string + "</CCCOOONTEXT>")
 
         return context_string
+
+
+def split_and_add_to_store(chunks, vector_store: Chroma):
+    if chunks:
+        with st.status(":material/split_scene_left: Splitting into chunks"):
+            splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=110)
+            chunks = splitter.split_documents(chunks)
+            # chunks[0].page_content, chunks[0].metadata
+
+        if chunks:
+            with st.status(":material/splitscreen_add: Adding chunks to vector store"):
+                vector_store.add_documents(chunks)

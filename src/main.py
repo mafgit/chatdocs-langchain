@@ -35,6 +35,7 @@ prompt_template = ChatPromptTemplate.from_messages(
             "- When document excerpts are provided, cite sources like [1], [2] format\n"
             "- Prioritize document content over general knowledge\n"
             "- If unsure about a detail, say so\n"
+            "- If prompt starts with /search, assume that relevant web search results are given in context"
             "- Don't explain your internal process or how you accessed documents\n"
             "{style_rule}",
         ),
