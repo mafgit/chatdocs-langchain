@@ -1,4 +1,4 @@
-from langchain_community.document_loaders import TextLoader, UnstructuredMarkdownLoader, Docx2txtLoader, PyPDFLoader, CSVLoader
+from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, PyPDFLoader, CSVLoader
 import tempfile
 from pathlib import Path
 from langchain_text_splitters import MarkdownHeaderTextSplitter
@@ -74,8 +74,12 @@ def read_files_and_extract_chunks(files_info, user_id, chat_id):
                 print(doc, "\n\n")
                 all_chunks.append(doc)
 
-        elif ext == "docx":
-            loader = Docx2txtLoader(file_path)
+        elif ext == "docx" or ext == "doc":
+            loader = loader = UnstructuredWordDocumentLoader(
+                file_path,
+                mode="single",
+                strategy="fast",
+            )
         elif ext == "csv":
             loader = CSVLoader(file_path)
         else:
@@ -84,30 +88,39 @@ def read_files_and_extract_chunks(files_info, user_id, chat_id):
         if loader:
             docs_generator = loader.lazy_load()
             for doc in docs_generator:
-                # print("ANALYYYYYYYZE", doc, '\n\n\n')
                 # doc.metadata["download_location"] = doc.metadata["source"]
                 alter_metadata(doc, filename, user_id, chat_id)
+
+                # flattening complex fields so that vector store doesnt complain when adding the docs
+                for field in doc.metadata:
+                    if isinstance(doc.metadata[field], list):
+                        doc.metadata[field] = ", ".join(map(str, doc.metadata[field]))
+
+                print(doc, "\n\n")
                 all_chunks.append(doc)
-                # print(doc.metadata)
 
     return all_chunks
 
 
-def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str, user_id, chat_id):
-    if vector_store._collection.count() == 0:
+def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str, user_id: int, chat_id: int):
+    count = vector_store._collection.count()
+    if count == 0:
         return ""
+
+    k = 10
 
     context_string = ""
     with st.status(":material/document_search: Finding relevant context"):
-        results = vector_store.similarity_search(
+        results = vector_store.similarity_search_with_score(
             query=original_prompt_text,
-            k=5,
+            k=k,
             filter={"$and": [{"user_id": user_id}, {"chat_id": chat_id}]},  # pyright: ignore
         )
 
         # context = "\n\n".join([doc.page_content + " [" + doc.metadata["source"] + "]" for doc in results])
         context_chunk_arr = []
-        for i, doc in enumerate(results, start=1):
+        for i, (doc, score) in enumerate(results, start=1):
+            print("\nSCORE TESTING", score, doc.page_content)
             fields = [
                 "source",
                 "page",
@@ -119,9 +132,11 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
                 "category",
                 "author",
                 "language",
+                "last_modified",
                 "Header 1",
                 "Header 2",
                 "Header 3",
+                "depth",
             ]
 
             metadata_strs = []
@@ -131,7 +146,7 @@ def get_context_from_attachments(vector_store: Chroma, original_prompt_text: str
                         f"- **{key.upper()}**: {doc.metadata[key] if key != 'source' else '`' + doc.metadata[key] + '`'}"
                     )
 
-            chunk_context_string = f"#### [SOURCE_{i}]\n" f"{'\n'.join(metadata_strs)}\n" f"- **CONTENT**:\n{doc.page_content}"
+            chunk_context_string = f"#### [{i}]\n" f"{'\n'.join(metadata_strs)}\n" f"- **CONTENT**:\n{doc.page_content}"
             st.info(chunk_context_string)
             context_chunk_arr.append(chunk_context_string)
 

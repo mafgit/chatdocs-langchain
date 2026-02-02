@@ -1,4 +1,4 @@
-# 🌀 ChatDocs
+# ֎ ChatDocs
 
 Chat with LLMs, attach documents, create multiple chats!
 
@@ -17,6 +17,7 @@ Chat with LLMs, attach documents, create multiple chats!
 - Document Loaders (PDF, DOCX, TXT, MD, CSV)
 - Vector stores (Chroma)
 - Streamlit
+- SQLite
 - Python
 
 ## Main Procedure:
@@ -41,23 +42,23 @@ Chat with LLMs, attach documents, create multiple chats!
 
 #### TODOS:
 
-- ~~add citations~~
 - add youtube transcripts
 - add website content reading
 - add xlsx
 - add better docx reader
-- ~~delete chat~~
 - stop response in middle
 - catch errors regarding not logged in or network error or other ollama errors
-- ~~add thinking models functionality~~
 - changing preferences in the middle of response stops it (reruns the flow)
-- ~~add sqlite3~~
 - make relevant content getting better
 - learn about retrievalQA
+- ~~add citations~~
+- add user auth
+- ~~delete chat~~
+- ~~add thinking models functionality~~
+- ~~add sqlite3~~
 - ~~some statuses should be inside ai chat message, not human~~
 - ~~make readme better with new images~~
 - ~~make system message / CONTEXT, PROMPT, etc better~~
-- add user auth
 - ~~last prompt time based ordering of sidebar chats~~, sidebar items not updating order until rerun
 - ~~add option of using whichever model~~
 - ~~add option of choosing style~~

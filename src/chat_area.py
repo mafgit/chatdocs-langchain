@@ -1,11 +1,11 @@
 import streamlit as st
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from handle_docs import read_files_and_extract_chunks, save_files, get_context_from_attachments
-from typing import Literal, Optional, Sequence
 from main import load_chat_model, load_vector_store, get_chain, embedding_models, chat_models
 import time
 from random import random
 import db
+from sidebar_area import create_new_chat
 
 
 def render_statuses(statuses):
@@ -88,16 +88,17 @@ def main():
             st.session_state["current_chat_history"] = db.get_chat_messages(current_chat_id)
 
     current_chat_history = st.session_state["current_chat_history"]
-    
+
     left, right = st.columns([0.9, 0.1])
     with left:
         st.subheader(":material/borg: " + current_chat["name"])
     with right:
         with st.container(horizontal_alignment="right"):
             if current_chat_id != 0:
-                if st.button(":material/delete:"):
+                delete_btn = st.button(":material/delete:")
+                if delete_btn:
                     db.delete_chat(current_chat_id)
-                    st.rerun()
+                    create_new_chat()
 
     # ---------------- PREFERENCES ----------------
 
@@ -167,19 +168,17 @@ def main():
             f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:0.8;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
         )
     else:
-        print("\n\n\nITEMS")
         for item in current_chat_history:
-            print(item)
             if item["role"] == "human":
                 with st.chat_message("human"):
-                    if item["statuses"]:
+                    if item.get("statuses", []):
                         render_statuses(item["statuses"])
-                    if item["files_info"]:
+                    if item.get("files_info", []):
                         render_file_download_buttons(item["files_info"])
                     st.markdown(item["content"])
             elif item["role"] in {"ai", "assistant"}:
                 with st.chat_message("ai"):
-                    if item["statuses"]:
+                    if item.get("statuses", []):
                         render_statuses(item["statuses"])
                     st.markdown(item["content"])
 
@@ -215,6 +214,16 @@ def main():
                 st.stop()
             finally:
                 st.session_state["disabled"] = False
+
+            # -------------- create new chat and update the session state ------------
+
+            if len(current_chat_history) == 0:
+                new_chat_id = db.create_chat(current_chat["name"], user_id)
+                current_chat_id = new_chat_id
+                st.session_state["current_chat_id"] = new_chat_id
+                for chat in st.session_state["chats"]:
+                    if chat["id"] == 0:
+                        chat["id"] = new_chat_id
 
             with st.chat_message("human"):
 
@@ -283,7 +292,7 @@ def main():
                     "attachments": (
                         f"Following contents were found from documents attached. Use them to answer user query. Also reference them.\n\n---\n{context_string.strip()}"
                         if context_string.strip()
-                        else "[NO RELEVANT ATTACHMENT UPLOADED BY USER]"
+                        else ""
                     ),
                     "human_input": (
                         "I have attached some attachments" if files and not original_prompt_text else original_prompt_text
@@ -295,16 +304,6 @@ def main():
                 # print("FINAL PROMPT BEING SENT\n", prompt_template.format_messages(**input))
 
                 chunks = chain.stream(input=input)
-
-                # -------------- create new chat and update the session state ------------
-
-                if len(current_chat_history) == 0:
-                    new_chat_id = db.create_chat(current_chat["name"], user_id)
-                    current_chat_id = new_chat_id
-                    st.session_state["current_chat_id"] = new_chat_id
-                    for chat in st.session_state["chats"]:
-                        if chat["id"] == 0:
-                            chat["id"] = new_chat_id
 
                 # ------------ inserting original message to db and history ---------------------
 
@@ -348,6 +347,8 @@ def main():
                     thinking_status = st.status(final_thinking_status_label)
                     thinking_placeholder = thinking_status.empty()
                     thinking_completed = False
+                    processing_start_time = time.time()
+                    processing_end_time = None
 
                     try:
                         for chunk in chunks:
@@ -359,12 +360,18 @@ def main():
 
                                 reasoning_content = chunk.additional_kwargs.get("reasoning_content")
                                 if reasoning_content:
+                                    if processing_end_time is None:
+                                        processing_end_time = time.time()
                                     final_thinking_content += reasoning_content
                                     thinking_placeholder.markdown(final_thinking_content)
 
                                 if chunk.content:
                                     if not thinking_completed:
                                         final_thinking_status_state = "complete"
+                                        if processing_end_time:
+                                            final_thinking_status_label += (
+                                                f" ({round(processing_end_time - processing_start_time)}s)"
+                                            )
                                         thinking_status.update(
                                             label=final_thinking_status_label,
                                             state=final_thinking_status_state,
@@ -373,6 +380,13 @@ def main():
                                     response += chunk.content
                                     yield chunk.content
                             else:
+                                final_thinking_status_state = "complete"
+                                if processing_end_time:
+                                    final_thinking_status_label += f" ({round(processing_end_time - processing_start_time)}s)"
+                                thinking_status.update(
+                                    label=final_thinking_status_label,
+                                    state=final_thinking_status_state,
+                                )
                                 response += chunk
                                 yield chunk
 

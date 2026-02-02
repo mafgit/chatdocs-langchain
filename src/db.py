@@ -190,7 +190,6 @@ def update_user_preferences(id, chat_model, embedding_model, temperature, style)
     conn.commit()
     conn.close()
 
-    # print(id, chat_model, embedding_model, temperature, style)
 
 
 def get_user_info(user_id: int):

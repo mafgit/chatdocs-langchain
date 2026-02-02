@@ -1,6 +1,5 @@
 import streamlit as st
 from coolname import generate_slug
-from uuid import uuid4
 import time
 from random import randint
 from coolname import generate_slug
@@ -11,6 +10,25 @@ def generate_unique_name():
     return generate_slug(randint(2, 3))
 
 
+def create_new_chat():
+    # uuid4().hex
+    new_id = 0
+    replaced = False
+    for c in st.session_state["chats"]:
+        if c["id"] == 0:
+            c["name"] = generate_unique_name()
+            c["last_interaction"] = time.time()
+            replaced = True
+            break
+
+    if not replaced:  # add new
+        st.session_state["chats"].insert(0, {"id": new_id, "name": generate_unique_name(), "last_interaction": time.time()})
+    st.session_state["current_chat_id"] = new_id
+    st.session_state["current_chat_history"] = []
+    # st.session_state["max_chat_id"] = new_id
+    st.rerun()
+
+
 def sidebar():
     with st.sidebar:
         st.title(":material/borg: ChatDocs", text_alignment="center")
@@ -18,24 +36,7 @@ def sidebar():
         new_chat_btn = st.button("New Chat", icon=":material/add:", width="stretch", type="primary")
 
         if new_chat_btn:
-            # uuid4().hex
-            new_id = 0
-            replaced = False
-            for c in st.session_state["chats"]:
-                if c["id"] == 0:
-                    c["name"] = generate_unique_name()
-                    c["last_interaction"] = time.time()
-                    replaced = True
-                    break
-
-            if not replaced:  # add new
-                st.session_state["chats"].insert(
-                    0, {"id": new_id, "name": generate_unique_name(), "last_interaction": time.time()}
-                )
-            st.session_state["current_chat_id"] = new_id
-            st.session_state["current_chat_history"] = []
-            # st.session_state["max_chat_id"] = new_id
-            st.rerun()
+            create_new_chat()
 
         # st.markdown("### Chats")
         with st.spinner():
