@@ -42,17 +42,18 @@ Chat with LLMs, attach documents, create multiple chats!
 
 #### TODOS:
 
+- add custom web search
 - add youtube transcripts
 - add website content reading
 - add xlsx
 - add better docx reader
 - stop response in middle
-- catch errors regarding not logged in or network error or other ollama errors
-- changing preferences in the middle of response stops it (reruns the flow)
 - make relevant content getting better
 - learn about retrievalQA
+<!-- - add user auth -->
+<!-- - changing preferences in the middle of response stops it (reruns the flow) -->
+- ~~catch errors regarding not logged in or network error or other ollama errors~~
 - ~~add citations~~
-- add user auth
 - ~~delete chat~~
 - ~~add thinking models functionality~~
 - ~~add sqlite3~~

@@ -22,7 +22,7 @@ def initialize_session_state():
         st.session_state["disabled"] = False
 
     if not "greeting_msg" in st.session_state:
-        greetings = ["Hey there!", "Greetings, user!", "Nice to meet you!", "Hello there!", "Good to see you!"]
+        greetings = ["Hey there!", "Greetings!", "Nice to meet you!", "What shall we discuss today?", "Let's get going!"]
         greeting_msg = "👋 " + greetings[randint(0, len(greetings) - 1)]
         st.session_state["greeting_msg"] = greeting_msg
 

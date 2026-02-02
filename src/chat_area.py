@@ -165,7 +165,7 @@ def main():
 
     if len(current_chat_history) == 0:
         greetings_div.html(
-            f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:0.8;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
+            f'<div style="display:flex;justify-content:center;align-items:center;min-height:max(250px,100%);margin-top:auto;opacity:1;font-size:1.2rem;">{st.session_state["greeting_msg"]}</div>'
         )
     else:
         for item in current_chat_history:
@@ -207,14 +207,26 @@ def main():
 
             try:
                 vector_store = load_vector_store(selected_embedding_model)
-            except:
-                st.error(
-                    f"Invalid model selected {selected_embedding_model}, please verify the exact name of the embedding model you have selected in preferences from Ollama."
+                
+                chat_model = load_chat_model(
+                    selected_chat_model,
+                    temperature=selected_temperature,
+                    reasoning=(
+                        None
+                        if selected_reasoning == "Default"
+                        else False if selected_reasoning == "Off" else selected_reasoning.lower()
+                    ),
                 )
+            except Exception as e:
+                st.error(str(e))
+                # st.error(
+                #     f"Invalid model selected {selected_embedding_model}, please verify the exact name of the embedding model you have selected in preferences from Ollama."
+                # )
                 st.stop()
             finally:
                 st.session_state["disabled"] = False
 
+            
             # -------------- create new chat and update the session state ------------
 
             if len(current_chat_history) == 0:
@@ -254,24 +266,6 @@ def main():
                     render_file_download_buttons(files_info)
                     # st.info(filename + " (" + str(file_size) + "KB)", icon=":material/file_present:")
                 st.markdown(original_prompt_text)
-
-                try:
-                    chat_model = load_chat_model(
-                        selected_chat_model,
-                        temperature=selected_temperature,
-                        reasoning=(
-                            None
-                            if selected_reasoning == "Default"
-                            else False if selected_reasoning == "Off" else selected_reasoning.lower()
-                        ),
-                    )
-                except:
-                    st.error(
-                        f"Invalid model selected {selected_chat_model}, please verify the exact name of the chat model you have selected in preferences from Ollama."
-                    )
-                    st.stop()
-                finally:
-                    st.session_state["disabled"] = False
 
             # --------------- AI RESPONSE ELEMENT ---------------
 
