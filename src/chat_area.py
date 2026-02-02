@@ -346,7 +346,6 @@ def main():
                     final_thinking_status_state = "running"
                     thinking_status = st.status(final_thinking_status_label)
                     thinking_placeholder = thinking_status.empty()
-                    thinking_completed = False
                     processing_start_time = time.time()
                     processing_end_time = None
 
@@ -357,16 +356,14 @@ def main():
                                 return
 
                             if not isinstance(chunk, str):
-
                                 reasoning_content = chunk.additional_kwargs.get("reasoning_content")
                                 if reasoning_content:
-                                    if processing_end_time is None:
-                                        processing_end_time = time.time()
                                     final_thinking_content += reasoning_content
                                     thinking_placeholder.markdown(final_thinking_content)
 
                                 if chunk.content:
-                                    if not thinking_completed:
+                                    if processing_end_time is None:
+                                        processing_end_time = time.time()
                                         final_thinking_status_state = "complete"
                                         if processing_end_time:
                                             final_thinking_status_label += (
@@ -376,7 +373,6 @@ def main():
                                             label=final_thinking_status_label,
                                             state=final_thinking_status_state,
                                         )
-                                        thinking_completed = True
                                     response += chunk.content
                                     yield chunk.content
                             else:
