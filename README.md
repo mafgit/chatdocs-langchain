@@ -13,9 +13,10 @@ Chat with LLMs, attach documents, create multiple chats!
 - LangChain
 - Ollama
 - RAG
-- Text splitters (Recursive Character, Markdown Header)
+- Text Splitters (Recursive Character, Markdown Header)
 - Document Loaders (PDF, DOCX, TXT, MD, CSV)
-- Vector stores (Chroma)
+- Storing embeddings in Vector stores (Chroma)
+- Custom Web Searching to add context via DuckDuckGo
 - Streamlit
 - SQLite
 - Python
@@ -40,18 +41,18 @@ Chat with LLMs, attach documents, create multiple chats!
 
 ----
 
-#### TODOS:
+<!-- #### TODOS:
 
-- add custom web search
 - add youtube transcripts
 - add website content reading
 - add xlsx
-- add better docx reader
 - stop response in middle
 - make relevant content getting better
-- learn about retrievalQA
+- learn about retrievalQA -->
 <!-- - add user auth -->
 <!-- - changing preferences in the middle of response stops it (reruns the flow) -->
+- ~~add better docx reader~~
+- ~~add custom web search~~
 - ~~catch errors regarding not logged in or network error or other ollama errors~~
 - ~~add citations~~
 - ~~delete chat~~
